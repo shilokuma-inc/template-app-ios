@@ -44,6 +44,7 @@
 		4FC9E2032BF1049C00F630AB /* IOSTemplateAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = IOSTemplateAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4FC9E2072BF1049C00F630AB /* IOSTemplateAppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTemplateAppUITests.swift; sourceTree = "<group>"; };
 		4FC9E2092BF1049C00F630AB /* IOSTemplateAppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSTemplateAppUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		4FC9E2162BF1334B00F630AB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -97,6 +98,7 @@
 				4FC9E1EC2BF1049B00F630AB /* IOSTemplateApp.swift */,
 				4FC9E1EE2BF1049B00F630AB /* ContentView.swift */,
 				4FC9E1F02BF1049C00F630AB /* Assets.xcassets */,
+				4FC9E2162BF1334B00F630AB /* Info.plist */,
 				4FC9E1F22BF1049C00F630AB /* Preview Content */,
 			);
 			path = IOSTemplateApp;
@@ -425,6 +427,7 @@
 				DEVELOPMENT_TEAM = XU74X3434S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IOSTemplateApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -455,6 +458,7 @@
 				DEVELOPMENT_TEAM = XU74X3434S;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = IOSTemplateApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
