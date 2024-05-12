@@ -1,0 +1,17 @@
+name: バージョンアップ
+description: バージョンアップのIssue
+title: "【UPDATE】Bump up version to v"
+labels: []
+projects: []
+assignees:
+  - mrs1669
+body:
+  - type: textarea
+    id: content
+    attributes:
+      label: 概要
+      description: 前後のバージョンの記載をお願いします
+      value: v → v
+      placeholder: "例: v1.1.0 → v1.2.0"
+    validations:
+      required: true
