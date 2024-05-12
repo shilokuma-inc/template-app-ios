@@ -1,4 +1,4 @@
-name: NinjacordApp
+name: IOSTemplateApp
 
 on:
   push:
@@ -32,11 +32,11 @@ jobs:
 
       - name: Archive Project
         run: |                        
-          xcodebuild archive -project NinjacordApp.xcodeproj \
-                             -scheme NinjacordApp \
+          xcodebuild archive -project IOSTemplateApp.xcodeproj \
+                             -scheme IOSTemplateApp \
                              -sdk iphoneos \
                              -configuration Release \
-                             -archivePath NinjacordApp.xcarchive \
+                             -archivePath IOSTemplateApp.xcarchive \
                              CODE_SIGNING_ALLOWED=NO
 
       - name: Create ExportOptions.plist
@@ -51,7 +51,7 @@ jobs:
       - name: Export IPA
         run: |   
           xcodebuild -exportArchive \
-                     -archivePath NinjacordApp.xcarchive \
+                     -archivePath IOSTemplateApp.xcarchive \
                      -exportOptionsPlist ExportOptions.plist \
                      -exportPath app.ipa \
                      -allowProvisioningUpdates \
@@ -61,7 +61,7 @@ jobs:
 
       - name: Upload IPA to App Store Connect
         run: |
-          xcrun altool --upload-app -f app.ipa/NinjacordApp.ipa \
+          xcrun altool --upload-app -f app.ipa/IOSTemplateApp.ipa \
                        -u ${{ secrets.APPLE_ID }} \
                        -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
                        --type ios

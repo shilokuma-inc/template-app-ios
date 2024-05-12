@@ -1,4 +1,4 @@
-name: NinjacordApp
+name: IOSTemplateApp
 
 on:
   push:
