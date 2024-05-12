@@ -1,8 +1,8 @@
 //
 //  ContentView.swift
-//  iOS-App-Template
+//  IOSTemplateApp
 //
-//  Created by 村石 拓海 on 2024/04/11.
+//  Created by 村石 拓海 on 2024/05/12.
 //
 
 import SwiftUI
