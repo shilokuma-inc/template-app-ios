@@ -52,21 +52,15 @@ jobs:
                      -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
                      -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
 
-      - name: Upload IPA to GitHub
-        uses: actions/upload-artifact@v3
-        with:
-          name: IOSTemplateApp.ipa
-          path: app.ipa/IOSTemplateApp.ipa
-
-      - name: Upload ipa file by Action
-        uses: actions/upload-artifact@v3
-        with:
-          name: IOSTemplateApp.ipa
-          path: app.ipa/IOSTemplateApp.ipa
-
-      - name: Upload IPA to App Store Connect
+      - name: Upload IPA file to App Store Connect
         run: |
           xcrun altool --upload-app -f app.ipa/IOSTemplateApp.ipa \
                        -u ${{ secrets.APPLE_ID }} \
                        -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
                        --type ios
+
+      - name: Upload IPA file to GitHub
+        uses: actions/upload-artifact@v3
+        with:
+          name: IOSTemplateApp.ipa
+          path: app.ipa/IOSTemplateApp.ipa
