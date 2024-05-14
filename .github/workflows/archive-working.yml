@@ -29,9 +29,8 @@ jobs:
           echo Using default scheme: $default
 
       - name: Archive Project
-        env:
-          scheme: ${{ 'default' }}
         run: |     
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
           echo $default                   
           xcodebuild archive -project IOSTemplateApp.xcodeproj \
                              -scheme $default \
