@@ -1,7 +1,7 @@
 name: バージョンアップ
 description: バージョンアップのIssue
 title: "【UPDATE】Bump up version to v"
-labels: []
+labels: [update]
 projects: []
 assignees:
   - mrs1669

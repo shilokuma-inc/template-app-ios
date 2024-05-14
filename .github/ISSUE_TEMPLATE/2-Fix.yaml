@@ -1,7 +1,7 @@
 name: バグ修正
 description: バグのIssue
 title: "【FIX】"
-labels: []
+labels: [bug]
 projects: []
 assignees:
   - mrs1669
