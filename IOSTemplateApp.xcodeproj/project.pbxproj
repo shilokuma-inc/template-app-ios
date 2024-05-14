@@ -143,6 +143,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				4F27869F2BF3744F00E9F5EF /* PBXTargetDependency */,
 			);
 			name = IOSTemplateApp;
 			productName = IOSTemplateApp;
@@ -287,6 +288,10 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4F27869F2BF3744F00E9F5EF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 4F27869E2BF3744F00E9F5EF /* SwiftLintBuildToolPlugin */;
+		};
 		4FC9E1FB2BF1049C00F630AB /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 4FC9E1E82BF1049B00F630AB /* IOSTemplateApp */;
@@ -608,6 +613,14 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		4F27869E2BF3744F00E9F5EF /* SwiftLintBuildToolPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F27869D2BF373B800E9F5EF /* XCRemoteSwiftPackageReference "SwiftLint" */;
+			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4FC9E1E12BF1049B00F630AB /* Project object */;
 }
