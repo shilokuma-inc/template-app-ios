@@ -30,7 +30,7 @@ jobs:
             echo "(basename "$project")"
           done
 
-          xcodebuild -resolvePackageDependencies -project IOSTemplateApp.xcodeproj -scheme IOSTemplateApp
+          xcodebuild -resolvePackageDependencies -project $project -scheme IOSTemplateApp
           scheme_list=$(xcodebuild -list -json)
           echo "$scheme_list"
           default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
