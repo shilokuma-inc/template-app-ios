@@ -63,7 +63,7 @@ jobs:
             project_name="${app_name%.xcworkspace}"
           fi
           echo app name $app_name
-          echo $project_name
+          echo project name $project_name
           echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
           xcrun altool --upload-app -f app.ipa/$project_name.ipa \
                       -u ${{ secrets.APPLE_ID }} \
