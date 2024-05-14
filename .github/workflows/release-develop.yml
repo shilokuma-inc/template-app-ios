@@ -68,5 +68,5 @@ jobs:
       - name: Upload IPA file to GitHub
         uses: actions/upload-artifact@v3
         with:
-          name: $app_name.ipa
+          name: ${{ env.PROJECT_NAME }}.ipa
           path: app.ipa/${{ env.PROJECT_NAME }}.ipa
