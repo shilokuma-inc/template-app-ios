@@ -57,6 +57,7 @@ jobs:
 
       - name: Upload IPA file to App Store Connect
         run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
           if [[ "$app_name" == *.xcodeproj ]]; then
             project_name="${app_name%.xcodeproj}"
           elif [[ "$app_name" == *.xcworkspace ]]; then
