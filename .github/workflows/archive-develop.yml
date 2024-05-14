@@ -30,7 +30,7 @@ jobs:
                              -scheme $default \
                              -sdk iphoneos \
                              -configuration Release \
-                             -archivePath IOSTemplateApp.xcarchive \
+                             -archivePath build.xcarchive \
                              CODE_SIGNING_ALLOWED=NO
 
       - name: Create ExportOptions.plist
@@ -45,7 +45,7 @@ jobs:
       - name: Export IPA
         run: |   
           xcodebuild -exportArchive \
-                     -archivePath IOSTemplateApp.xcarchive \
+                     -archivePath build.xcarchive \
                      -exportOptionsPlist ExportOptions.plist \
                      -exportPath app.ipa \
                      -allowProvisioningUpdates \
