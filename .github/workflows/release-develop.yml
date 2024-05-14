@@ -2,7 +2,6 @@ name: IOSTemplateApp
 
 on:
   push:
-    branches: develop
 
 jobs:          
   build:
