@@ -16,12 +16,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set Default Scheme
+      - name: Set Environment
         run: |
-          scheme_list=$(xcodebuild -list -json | tr -d "\n")
-          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-          echo $default | cat >default
-          echo Using default scheme: $default
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          if [[ "$app_name" == *.xcodeproj ]]; then
+            project_name="${app_name%.xcodeproj}"
+          elif [[ "$app_name" == *.xcworkspace ]]; then
+            project_name="${app_name%.xcworkspace}"
+          fi
+          echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
 
       - name: Archive Project
         run: |
@@ -57,14 +60,7 @@ jobs:
 
       - name: Upload IPA file to App Store Connect
         run: |
-          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
-          if [[ "$app_name" == *.xcodeproj ]]; then
-            project_name="${app_name%.xcodeproj}"
-          elif [[ "$app_name" == *.xcworkspace ]]; then
-            project_name="${app_name%.xcworkspace}"
-          fi
-          echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
-          xcrun altool --upload-app -f app.ipa/$project_name.ipa \
+          xcrun altool --upload-app -f app.ipa/${{ env.PROJECT_NAME }}.ipa \
                       -u ${{ secrets.APPLE_ID }} \
                       -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
                       --type ios
