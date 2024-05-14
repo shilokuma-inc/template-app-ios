@@ -25,13 +25,15 @@ jobs:
           echo Using default scheme: $default
 
       - name: Archive Project
-        run: |                        
+        run: |
+          scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")              
           xcodebuild archive -project IOSTemplateApp.xcodeproj \
-                             -scheme $default \
-                             -sdk iphoneos \
-                             -configuration Release \
-                             -archivePath build.xcarchive \
-                             CODE_SIGNING_ALLOWED=NO
+                              -scheme $default \
+                              -sdk iphoneos \
+                              -configuration Release \
+                              -archivePath build.xcarchive \
+                              CODE_SIGNING_ALLOWED=NO
 
       - name: Create ExportOptions.plist
         run: |
