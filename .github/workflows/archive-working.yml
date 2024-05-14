@@ -29,7 +29,8 @@ jobs:
           echo Using default scheme: $default
 
       - name: Archive Project
-        run: |                        
+        run: |     
+          echo $default                   
           xcodebuild archive -project IOSTemplateApp.xcodeproj \
                              -scheme $default \
                              -sdk iphoneos \
