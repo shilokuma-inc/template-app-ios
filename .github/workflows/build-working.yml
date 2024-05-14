@@ -25,15 +25,9 @@ jobs:
           # .xcodeprojファイルを検索して変数に保存
           projects=$(find . -name "*.xcodeproj")
           
-          # もし見つからなければメッセージを表示して終了
-          if [ -z "$projects" ]; then
-            echo "No .xcodeproj files found."
-            exit 0
-          fi
-          
           # 各プロジェクトファイルのパスを表示
           for project in $projects; do
-            echo "Found project: $project"
+            echo "(basename "$project")"
           done
 
           xcodebuild -resolvePackageDependencies -project IOSTemplateApp.xcodeproj -scheme IOSTemplateApp
