@@ -17,21 +17,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set Default Scheme
+      - name: Set Environment
         run: |
-          scheme_list=$(xcodebuild -list -json | tr -d "\n")
-          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
-          echo $default | cat >default
-          echo Using default scheme: $default
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          if [[ "$app_name" == *.xcodeproj ]]; then
+            project_name="${app_name%.xcodeproj}"
+          elif [[ "$app_name" == *.xcworkspace ]]; then
+            project_name="${app_name%.xcworkspace}"
+          fi
+          echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
 
       - name: Archive Project
-        run: |                        
-          xcodebuild archive -project IOSTemplateApp.xcodeproj \
-                             -scheme IOSTemplateApp \
-                             -sdk iphoneos \
-                             -configuration Release \
-                             -archivePath IOSTemplateApp.xcarchive \
-                             CODE_SIGNING_ALLOWED=NO
+        run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")              
+          xcodebuild archive -"$filetype_parameter" "$file_to_build" \
+                              -scheme $default \
+                              -sdk iphoneos \
+                              -configuration Release \
+                              -archivePath build.xcarchive \
+                              CODE_SIGNING_ALLOWED=NO
 
       - name: Create ExportOptions.plist
         run: |
@@ -45,7 +51,7 @@ jobs:
       - name: Export IPA
         run: |   
           xcodebuild -exportArchive \
-                     -archivePath IOSTemplateApp.xcarchive \
+                     -archivePath build.xcarchive \
                      -exportOptionsPlist ExportOptions.plist \
                      -exportPath app.ipa \
                      -allowProvisioningUpdates \
@@ -55,7 +61,7 @@ jobs:
 
       - name: Upload IPA file to App Store Connect
         run: |
-          xcrun altool --upload-app -f app.ipa/IOSTemplateApp.ipa \
+          xcrun altool --upload-app -f app.ipa/${{ env.PROJECT_NAME }}.ipa \
                       -u ${{ secrets.APPLE_ID }} \
                       -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
                       --type ios
@@ -63,5 +69,5 @@ jobs:
       - name: Upload IPA file to GitHub
         uses: actions/upload-artifact@v3
         with:
-          name: IOSTemplateApp.ipa
-          path: app.ipa/IOSTemplateApp.ipa
+          name: ${{ env.PROJECT_NAME }}.ipa
+          path: app.ipa/${{ env.PROJECT_NAME }}.ipa

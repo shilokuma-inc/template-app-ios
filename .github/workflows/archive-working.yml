@@ -23,17 +23,21 @@ jobs:
       - name: Set Default Scheme
         run: |
           scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          echo "$scheme_list"
           default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")
           echo $default | cat >default
           echo Using default scheme: $default
 
       - name: Archive Project
-        run: |                        
-          xcodebuild archive -project IOSTemplateApp.xcodeproj \
-                             -scheme IOSTemplateApp \
+        run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")              
+          xcodebuild archive -"$filetype_parameter" "$file_to_build" \
+                             -scheme $default \
                              -sdk iphoneos \
                              -configuration Release \
-                             -archivePath IOSTemplateApp.xcarchive \
+                             -archivePath build.xcarchive \
                              CODE_SIGNING_ALLOWED=NO
 
       - name: Create ExportOptions.plist
@@ -48,7 +52,7 @@ jobs:
       - name: Export IPA
         run: |   
           xcodebuild -exportArchive \
-                     -archivePath IOSTemplateApp.xcarchive \
+                     -archivePath build.xcarchive \
                      -exportOptionsPlist ExportOptions.plist \
                      -exportPath app.ipa \
                      -allowProvisioningUpdates \
