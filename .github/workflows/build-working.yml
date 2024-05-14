@@ -22,6 +22,8 @@ jobs:
 
       - name: Set Default Scheme
         run: |
+          scheme=$(cat default)
+          echo "$scheme"
           xcodebuild -resolvePackageDependencies -project IOSTemplateApp.xcodeproj -scheme IOSTemplateApp
           scheme_list=$(xcodebuild -list -json)
           echo "$scheme_list"
