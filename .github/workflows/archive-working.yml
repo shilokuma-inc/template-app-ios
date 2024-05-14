@@ -31,7 +31,7 @@ jobs:
       - name: Archive Project
         run: |                        
           xcodebuild archive -project IOSTemplateApp.xcodeproj \
-                             -scheme IOSTemplateApp \
+                             -scheme $default \
                              -sdk iphoneos \
                              -configuration Release \
                              -archivePath IOSTemplateApp.xcarchive \
