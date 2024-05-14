@@ -36,8 +36,6 @@ jobs:
             echo "Found project: $project"
           done
 
-          for project in $(find . -name "*.xcodeproj"); do
-          echo "Found project: $project"
           xcodebuild -resolvePackageDependencies -project IOSTemplateApp.xcodeproj -scheme IOSTemplateApp
           scheme_list=$(xcodebuild -list -json)
           echo "$scheme_list"
