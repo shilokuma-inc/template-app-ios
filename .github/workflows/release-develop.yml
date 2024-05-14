@@ -57,7 +57,8 @@ jobs:
 
       - name: Upload IPA file to App Store Connect
         run: |
-          xcrun altool --upload-app -f app.ipa/IOSTemplateApp.ipa \
+         if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          xcrun altool --upload-app -f app.ipa/$app_name.ipa \
                       -u ${{ secrets.APPLE_ID }} \
                       -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
                       --type ios
@@ -65,5 +66,5 @@ jobs:
       - name: Upload IPA file to GitHub
         uses: actions/upload-artifact@v3
         with:
-          name: IOSTemplateApp.ipa
-          path: app.ipa/IOSTemplateApp.ipa
+          name: $app_name.ipa
+          path: app.ipa/$app_name.ipa
