@@ -23,7 +23,6 @@ jobs:
       - name: ci_post_clone
         run: |
           defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-          defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
 
       - name: Set Default Scheme
         run: |
