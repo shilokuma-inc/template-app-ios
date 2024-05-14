@@ -29,6 +29,8 @@ jobs:
           echo Using default scheme: $default
 
       - name: Archive Project
+        env:
+          scheme: ${{ 'default' }}
         run: |     
           echo $default                   
           xcodebuild archive -project IOSTemplateApp.xcodeproj \
