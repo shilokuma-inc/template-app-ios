@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload IPA file to App Store Connect
         run: |
-         if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
+         if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="${`ls -A | grep -i \\.xcworkspace\$`%.xcworkspace}"; else app_name="${`ls -A | grep -i \\.xcodeproj\$`%.xcodeproj}"; fi
           xcrun altool --upload-app -f app.ipa/$app_name.ipa \
                       -u ${{ secrets.APPLE_ID }} \
                       -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
