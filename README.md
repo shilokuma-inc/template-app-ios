@@ -1,2 +1,2 @@
-# iOS-App-Template
+# IOSTemplateApp
 iOS Application Template (SwiftUI)
