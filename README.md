@@ -18,13 +18,21 @@ iOS Application Template (SwiftUI)
       </tr>
       <tr>
         <td style="border:2px double #000080;text-align:left;">develop</td>
-        <td style="border:2px double #000080;text-align:center;">&nbsp;</td>
+        <td style="border:2px double #000080;text-align:center;">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml/badge.svg" alt="IOSTemplateApp">
+          </a>
+        </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml">
             <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml/badge.svg" alt="IOSTemplateApp">
           </a>
         </td>
-        <td style="border:2px double #000080;text-align:center;">&nbsp;</td>
+        <td style="border:2px double #000080;text-align:center;">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml/badge.svg" alt="IOSTemplateApp">
+          </a>
+        </td>
       </tr>
     </tbody>
   </table>
