@@ -6,9 +6,9 @@ iOS Application Template (SwiftUI)
     <tbody>
       <tr>
         <td style="border:2px double #000080;text-align:left;">branch \ workflow</td>
-        <td style="border:2px double #000080;text-align:left;">Build</td>
-        <td style="border:2px double #000080;text-align:left;">Archive</td>
-        <td style="border:2px double #000080;text-align:left;">Release</td>
+        <td style="border:2px double #000080;text-align:center;">Build</td>
+        <td style="border:2px double #000080;text-align:center;">Archive</td>
+        <td style="border:2px double #000080;text-align:center;">Release</td>
       </tr>
       <tr>
         <td style="border:2px double #000080;text-align:left;">main</td>
