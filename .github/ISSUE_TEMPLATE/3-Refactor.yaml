@@ -1,0 +1,16 @@
+name: リファクタリング
+description: リファクタリングのIssue
+title: "【REFACTOR】"
+labels: []
+projects: []
+assignees:
+  - mrs1669
+body:
+  - type: textarea
+    id: content
+    attributes:
+      label: 概要
+      description: 内容を説明してください
+      placeholder: 〜をリファクタリングしました
+    validations:
+      required: true
