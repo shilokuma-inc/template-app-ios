@@ -1,0 +1,16 @@
+name: 軽作業
+description: 軽作業用のIssue
+title: "【CHORE】"
+labels: []
+projects: []
+assignees:
+  - mrs1669
+body:
+  - type: textarea
+    id: content
+    attributes:
+      label: 概要
+      description: 作業内容を説明してください
+      placeholder: 〜をしました
+    validations:
+      required: true
