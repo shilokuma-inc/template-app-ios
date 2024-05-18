@@ -11,10 +11,22 @@ iOS Application Template (SwiftUI)
         <td style="border:2px double #000080;">Release</td>
       </tr>
       <tr>
-        <td style="border:2px double #000080;text-align:left;">main</td>
-        <td style="border:2px double #000080;text-align:center;">&nbsp;</td>
-        <td style="border:2px double #000080;text-align:center;">&nbsp;</td>
-        <td style="border:2px double #000080;text-align:center;">&nbsp;</td>
+        <td style="border:2px double #000080;text-align:left;">develop</td>
+        <td style="border:2px double #000080;text-align:center;">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml/badge.svg" alt="IOSTemplateApp">
+          </a>
+        </td>
+        <td style="border:2px double #000080;text-align:center;">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml/badge.svg" alt="IOSTemplateApp">
+          </a>
+        </td>
+        <td style="border:2px double #000080;text-align:center;">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-main.yml/badge.svg" alt="IOSTemplateApp">
+          </a>
+        </td>
       </tr>
       <tr>
         <td style="border:2px double #000080;text-align:left;">develop</td>
