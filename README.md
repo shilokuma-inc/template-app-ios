@@ -16,17 +16,17 @@ iOS Application Template (SwiftUI)
         <td style="border:2px double #000080;text-align:left;">main</td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml/badge.svg" alt="Build">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml/badge.svg" alt="Archive">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-main.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-main.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-main.yml/badge.svg" alt="Release">
           </a>
         </td>
       </tr>
@@ -34,17 +34,17 @@ iOS Application Template (SwiftUI)
         <td style="border:2px double #000080;text-align:left;">develop</td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml/badge.svg" alt="Build">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml/badge.svg" alt="Archive">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml/badge.svg" alt="IOSTemplateApp">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/release-develop.yml/badge.svg" alt="Release">
           </a>
         </td>
       </tr>
