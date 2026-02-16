@@ -27,6 +27,8 @@ iOS Application Template (SwiftUI)
             <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml/badge.svg" alt="Archive">
           </a>
         </td>
+        <td style="border:2px double #000080;text-align:center;">
+        </td>
       </tr>
       <tr>
         <td style="border:2px double #000080;text-align:left;">develop</td>
