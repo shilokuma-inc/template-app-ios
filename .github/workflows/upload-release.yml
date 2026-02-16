@@ -1,8 +1,9 @@
-name: Release
+name: Upload/release
 
 on:
   push:
-    branches: main
+    branches: 
+      - 'release/**'
 
 jobs:          
   build:
