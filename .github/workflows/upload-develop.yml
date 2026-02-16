@@ -1,4 +1,4 @@
-name: IOSTemplateApp
+name: Upload/develop
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
 
 jobs:          
   build:
-    name: Release | develop
+    name: develop
     runs-on: macos-latest
 
     steps:
@@ -71,7 +71,7 @@ jobs:
                       --type ios
 
       - name: Upload IPA file to GitHub
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.PROJECT_NAME }}.ipa
           path: app.ipa/${{ env.PROJECT_NAME }}.ipa

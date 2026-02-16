@@ -7,6 +7,17 @@
 - resolve #
 
 ## 詳細 (Detail)
-
-
 <!-- Thank you for your contribution! -->
+
+<!-- スクリーンショットテンプレート
+<table>
+  <tr>
+    <th>Before</th>
+    <th>After</th>
+  </tr>
+  <tr>
+    <td><img width="320" alt="ファイル名" src="URL"></td>
+    <td><img width="320" alt="ファイル名" src="URL"></td>
+  </tr>
+</table>
+-->

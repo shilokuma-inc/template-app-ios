@@ -1,4 +1,4 @@
-name: IOSTemplateApp
+name: Archive
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
 
 jobs:          
   build:
-    name: Archive | working
+    name: working
     runs-on: macos-latest
 
     steps:

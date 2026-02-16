@@ -11,6 +11,6 @@ body:
     attributes:
       label: 概要
       description: 追加したい機能の説明をお願いします
-      placeholder: ~~機能を作成しました
+      placeholder: 〜機能を作成しました
     validations:
       required: true
