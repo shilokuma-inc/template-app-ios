@@ -1,12 +1,13 @@
-name: Release
+name: Upload/release
 
 on:
   push:
-    branches: develop
+    branches: 
+      - 'release/**'
 
 jobs:          
   build:
-    name: develop
+    name: main
     runs-on: macos-latest
 
     steps:
