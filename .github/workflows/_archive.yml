@@ -8,7 +8,8 @@ on:
       xcode-version:
         description: maxim-lobanov/setup-xcode に渡す Xcode バージョン
         type: string
-        default: latest-stable
+        # README の Environment と揃える。ランナー側の更新でビルドが変わらないよう固定する
+        default: '26.3'
       upload:
         description: Export した IPA を App Store Connect へアップロードするか
         type: boolean
@@ -34,6 +35,7 @@ on:
 jobs:
   archive:
     runs-on: macos-latest
+    timeout-minutes: 45
 
     steps:
       - name: Select Xcode
