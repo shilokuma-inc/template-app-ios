@@ -1,9 +1,18 @@
 name: Archive
 
+# main への push で Archive → IPA Export まで通ることを確認する（アップロードはしない）。
+# develop / release/** は upload.yml が Archive を含むため、ここでは実行しない。
 on:
   push:
     branches:
-      - '**'
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   archive:

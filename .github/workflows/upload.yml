@@ -1,10 +1,20 @@
 name: Upload
 
+# develop / release/** への push で Archive → IPA Export → App Store Connect へアップロードする。
 on:
   push:
     branches:
       - develop
       - 'release/**'
+
+permissions:
+  contents: read
+
+# アップロード途中でキャンセルすると App Store Connect 側に中途半端なビルドが残るため、
+# 実行中のものは完了させる
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   upload:
