@@ -37,10 +37,21 @@ jobs:
           echo "SIMULATOR_ID=$(jq -r .udid <<<"$simulator")" >> "$GITHUB_ENV"
           echo "project=$project scheme=$project simulator=$(jq -r '"\(.name) (\(.udid))"' <<<"$simulator")"
 
-      - name: Build for testing
+      - name: Build and test
+        # UI テストは共有ランナー上で起動待ちに失敗することがあるため、失敗したテストだけ最大 2 回まで再試行する
         run: |
-          xcodebuild build-for-testing \
+          xcodebuild test \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
             -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
-            -derivedDataPath DerivedData
+            -derivedDataPath DerivedData \
+            -resultBundlePath TestResults.xcresult \
+            -retry-tests-on-failure \
+            -test-iterations 2
+
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: TestResults.xcresult
