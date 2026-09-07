@@ -1,0 +1,99 @@
+# Archive → IPA Export（→ App Store Connect へアップロード）の共通処理。
+# archive.yml / upload.yml から workflow_call で呼び出される。
+name: _archive
+
+on:
+  workflow_call:
+    inputs:
+      xcode-version:
+        description: maxim-lobanov/setup-xcode に渡す Xcode バージョン
+        type: string
+        default: latest-stable
+      upload:
+        description: Export した IPA を App Store Connect へアップロードするか
+        type: boolean
+        default: false
+    secrets:
+      EXPORT_OPTIONS:
+        description: ExportOptions.plist の内容
+        required: true
+      APPLE_API_KEY_BASE64:
+        description: App Store Connect API Key（.p8）を base64 エンコードしたもの
+        required: true
+      APPLE_API_KEY_ID:
+        required: true
+      APPLE_API_ISSUER_ID:
+        required: true
+      APPLE_ID:
+        description: アップロードに使う Apple ID（upload=true のときのみ必要）
+        required: false
+      APP_SPECIFIC_PASSWORD:
+        description: Apple ID の App 用パスワード（upload=true のときのみ必要）
+        required: false
+
+jobs:
+  archive:
+    runs-on: macos-latest
+
+    steps:
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ inputs.xcode-version }}
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Allow SwiftLint build tool plugin
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+
+      - name: Set up environment
+        # プロジェクト名と同名の共有スキームが存在することを前提にする
+        run: |
+          project=$(basename -s .xcodeproj ./*.xcodeproj)
+          echo "PROJECT_NAME=$project" >> "$GITHUB_ENV"
+          echo "SCHEME=$project" >> "$GITHUB_ENV"
+          echo "project=$project scheme=$project"
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath build.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create ExportOptions.plist
+        run: echo '${{ secrets.EXPORT_OPTIONS }}' > ExportOptions.plist
+
+      - name: Create App Store Connect API private key
+        run: |
+          mkdir private_keys
+          echo -n '${{ secrets.APPLE_API_KEY_BASE64 }}' | base64 --decode > ./private_keys/AuthKey_${{ secrets.APPLE_API_ISSUER_ID }}.p8
+
+      - name: Export IPA
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath app.ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$PWD/private_keys/AuthKey_${{ secrets.APPLE_API_ISSUER_ID }}.p8" \
+            -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
+            -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
+
+      - name: Upload IPA to App Store Connect
+        if: ${{ inputs.upload }}
+        run: |
+          xcrun altool --upload-app -f "app.ipa/$PROJECT_NAME.ipa" \
+            -u ${{ secrets.APPLE_ID }} \
+            -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
+            --type ios
+
+      - name: Upload IPA to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}.ipa
+          path: app.ipa/${{ env.PROJECT_NAME }}.ipa

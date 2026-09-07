@@ -18,13 +18,13 @@ iOS Application Template (SwiftUI)
       <tr>
         <td style="border:2px double #000080;text-align:left;">main</td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-main.yml/badge.svg" alt="Build">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build.yml?query=branch%3Amain">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build.yml/badge.svg?branch=main" alt="Build">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-main.yml/badge.svg" alt="Archive">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml?query=branch%3Amain">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml/badge.svg?branch=main" alt="Archive">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
@@ -33,18 +33,18 @@ iOS Application Template (SwiftUI)
       <tr>
         <td style="border:2px double #000080;text-align:left;">develop</td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build-develop.yml/badge.svg" alt="Build">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build.yml?query=branch%3Adevelop">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/build.yml/badge.svg?branch=develop" alt="Build">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive-develop.yml/badge.svg" alt="Archive">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml?query=branch%3Adevelop">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml/badge.svg?branch=develop" alt="Archive">
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/uoload-develop.yml">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/upload-develop.yml/badge.svg" alt="Upload">
+          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/upload.yml?query=branch%3Adevelop">
+            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/upload.yml/badge.svg?branch=develop" alt="Upload">
           </a>
         </td>
       </tr>
