@@ -1,0 +1,14 @@
+name: ドキュメント
+description: README などドキュメントの追加・修正の Issue
+title: "【DOCS】"
+labels: [documentation]
+projects: []
+body:
+  - type: textarea
+    id: content
+    attributes:
+      label: 概要
+      description: 追加・修正したいドキュメントの内容を説明してください
+      placeholder: 〜の手順を README に追記したい
+    validations:
+      required: true
