@@ -155,6 +155,7 @@
 			);
 			dependencies = (
 				4FC9E1FB2BF1049C00F630AB /* PBXTargetDependency */,
+				4FA0000000000000000000D1 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4FA0000000000000000000B2 /* IOSTemplateAppTests */,
@@ -176,6 +177,7 @@
 			);
 			dependencies = (
 				4FC9E2052BF1049C00F630AB /* PBXTargetDependency */,
+				4FA0000000000000000000E1 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				4FA0000000000000000000B3 /* IOSTemplateAppUITests */,
@@ -294,6 +296,14 @@
 			isa = PBXTargetDependency;
 			target = 4FC9E1E82BF1049B00F630AB /* IOSTemplateApp */;
 			targetProxy = 4FC9E2042BF1049C00F630AB /* PBXContainerItemProxy */;
+		};
+		4FA0000000000000000000D1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 4FA0000000000000000000D2 /* SwiftLintBuildToolPlugin */;
+		};
+		4FA0000000000000000000E1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 4FA0000000000000000000E2 /* SwiftLintBuildToolPlugin */;
 		};
 /* End PBXTargetDependency section */
 
@@ -588,13 +598,23 @@
 			repositoryURL = "https://github.com/realm/SwiftLint";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.55.0;
+				minimumVersion = 0.65.1;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		4F27869E2BF3744F00E9F5EF /* SwiftLintBuildToolPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F27869D2BF373B800E9F5EF /* XCRemoteSwiftPackageReference "SwiftLint" */;
+			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		4FA0000000000000000000D2 /* SwiftLintBuildToolPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4F27869D2BF373B800E9F5EF /* XCRemoteSwiftPackageReference "SwiftLint" */;
+			productName = "plugin:SwiftLintBuildToolPlugin";
+		};
+		4FA0000000000000000000E2 /* SwiftLintBuildToolPlugin */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 4F27869D2BF373B800E9F5EF /* XCRemoteSwiftPackageReference "SwiftLint" */;
 			productName = "plugin:SwiftLintBuildToolPlugin";
