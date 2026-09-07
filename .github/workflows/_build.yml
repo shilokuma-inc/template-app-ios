@@ -37,6 +37,24 @@ jobs:
           echo "SIMULATOR_ID=$(jq -r .udid <<<"$simulator")" >> "$GITHUB_ENV"
           echo "project=$project scheme=$project simulator=$(jq -r '"\(.name) (\(.udid))"' <<<"$simulator")"
 
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -derivedDataPath DerivedData
+
+      - name: SwiftLint
+        # Build Tool Plugin と同じバージョンの SwiftLint（SPM が解決したバイナリ）で .swiftlint.yml を検証する
+        run: |
+          swiftlint=$(find DerivedData/SourcePackages/artifacts -type f -name swiftlint -path '*macos*' | head -1)
+          if [[ -z "$swiftlint" ]]; then
+            echo "::error::SPM が解決した SwiftLint バイナリが見つかりません" >&2
+            exit 1
+          fi
+          "$swiftlint" version
+          "$swiftlint" lint --strict --reporter github-actions-logging
+
       - name: Build and test
         # UI テストは共有ランナー上で起動待ちに失敗することがあるため、失敗したテストだけ最大 2 回まで再試行する
         run: |
