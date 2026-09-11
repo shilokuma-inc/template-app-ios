@@ -27,12 +27,12 @@ final class NFCReader: NSObject {
     /// 読み取りセッションを開始する。複数タグを続けて読めるよう、初回読み取りでは終了しない
     func beginSession() {
         guard Self.isAvailable else {
-            lastError = "この端末では NFC を利用できません"
+            lastError = tr("NFC is not available on this device")
             return
         }
         lastError = nil
         let session = NFCNDEFReaderSession(delegate: self, queue: nil, invalidateAfterFirstRead: false)
-        session.alertMessage = "NFC タグを iPhone の上部に近づけてください"
+        session.alertMessage = tr("Hold an NFC tag near the top of your iPhone")
         self.session = session
         isSessionActive = true
         session.begin()
@@ -63,7 +63,7 @@ final class NFCReader: NSObject {
             }
         }
         if payloads.isEmpty {
-            session?.alertMessage = "対応していないタグです。別のタグを近づけてください"
+            session?.alertMessage = tr("Unsupported tag. Try another tag.")
         }
     }
 

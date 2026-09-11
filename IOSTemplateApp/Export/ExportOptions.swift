@@ -18,8 +18,8 @@ enum ExportFormat: String, CaseIterable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .simple: "簡易"
-        case .lines: "行区切り"
+        case .simple: tr("Simple")
+        case .lines: tr("Lines")
         case .csv: "CSV"
         case .json: "JSON"
         }

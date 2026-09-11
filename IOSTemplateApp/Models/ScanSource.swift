@@ -13,9 +13,9 @@ enum ScanSource: String, Codable, CaseIterable, Sendable {
 
     var displayName: String {
         switch self {
-        case .qrCode: "QRコード"
-        case .nfc: "NFC"
-        case .manual: "手入力"
+        case .qrCode: tr("QR code")
+        case .nfc: tr("NFC")
+        case .manual: tr("Manual entry")
         }
     }
 
