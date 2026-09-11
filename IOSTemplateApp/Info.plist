@@ -8,6 +8,8 @@
 	<string>QRコードを読み取るためにカメラを使用します。</string>
 	<key>NFCReaderUsageDescription</key>
 	<string>NFCタグに書き込まれたURLを読み取るためにNFCを使用します。</string>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
