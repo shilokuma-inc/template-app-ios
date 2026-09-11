@@ -1,0 +1,80 @@
+name: Upload
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!main'
+      - '!develop'
+
+jobs:          
+  build:
+    name: working
+    runs-on: macos-latest
+
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ci_post_clone
+        run: |
+          defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+
+      - name: Set Environment
+        run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then app_name="`ls -A | grep -i \\.xcworkspace\$`"; else app_name="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          if [[ "$app_name" == *.xcodeproj ]]; then
+            project_name="${app_name%.xcodeproj}"
+          elif [[ "$app_name" == *.xcworkspace ]]; then
+            project_name="${app_name%.xcworkspace}"
+          fi
+          echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
+
+      - name: Archive Project
+        run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"; else filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"; fi
+          scheme_list=$(xcodebuild -list -json | tr -d "\n")
+          default=$(echo $scheme_list | ruby -e "require 'json'; puts JSON.parse(STDIN.gets)['project']['targets'][0]")              
+          xcodebuild archive -"$filetype_parameter" "$file_to_build" \
+                              -scheme $default \
+                              -sdk iphoneos \
+                              -configuration Release \
+                              -archivePath build.xcarchive \
+                              CODE_SIGNING_ALLOWED=NO
+
+      - name: Create ExportOptions.plist
+        run: |
+          echo '${{ secrets.EXPORT_OPTIONS }}' > ExportOptions.plist
+
+      - name: Create Private Key
+        run: |
+          mkdir private_keys
+          echo -n '${{ secrets.APPLE_API_KEY_BASE64 }}' | base64 --decode > ./private_keys/AuthKey_${{ secrets.APPLE_API_ISSUER_ID }}.p8
+
+      - name: Export IPA
+        run: |   
+          xcodebuild -exportArchive \
+                     -archivePath build.xcarchive \
+                     -exportOptionsPlist ExportOptions.plist \
+                     -exportPath app.ipa \
+                     -allowProvisioningUpdates \
+                     -authenticationKeyPath `pwd`/private_keys/AuthKey_${{ secrets.APPLE_API_ISSUER_ID }}.p8 \
+                     -authenticationKeyID ${{ secrets.APPLE_API_KEY_ID }} \
+                     -authenticationKeyIssuerID ${{ secrets.APPLE_API_ISSUER_ID }}
+
+      - name: Upload IPA file to App Store Connect
+        run: |
+          xcrun altool --upload-app -f app.ipa/${{ env.PROJECT_NAME }}.ipa \
+                      -u ${{ secrets.APPLE_ID }} \
+                      -p ${{ secrets.APP_SPECIFIC_PASSWORD }} \
+                      --type ios
+
+      - name: Upload IPA file to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PROJECT_NAME }}.ipa
+          path: app.ipa/${{ env.PROJECT_NAME }}.ipa
