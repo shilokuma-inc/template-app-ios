@@ -9,9 +9,16 @@ import SwiftUI
 
 @main
 struct IOSTemplateApp: App {
+    @State private var store = ScanStore()
+    @State private var settings = AppSettings()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environment(store)
+                .environment(settings)
+                .preferredColorScheme(settings.appearance.colorScheme)
+                .environment(\.locale, settings.language.locale)
         }
     }
 }

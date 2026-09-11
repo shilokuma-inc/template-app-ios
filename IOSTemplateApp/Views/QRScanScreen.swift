@@ -9,7 +9,8 @@ import SwiftUI
 /// QR コード読み取り画面。読み取るたびに結果をトーストで表示し、連続読み取りできる
 struct QRScanScreen: View {
     @Environment(\.dismiss) private var dismiss
-    @Bindable var store: ScanStore
+    @Environment(ScanStore.self) private var store
+    @Environment(AppSettings.self) private var settings
 
     @State private var authorization: AVAuthorizationStatus = AVCaptureDevice.authorizationStatus(for: .video)
     @State private var toast: String?
@@ -18,14 +19,14 @@ struct QRScanScreen: View {
     var body: some View {
         NavigationStack {
             content
-                .navigationTitle("QRコード読み取り")
+                .navigationTitle(tr("Scan QR code"))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("閉じる") { dismiss() }
+                        Button(tr("Close")) { dismiss() }
                     }
                     ToolbarItem(placement: .principal) {
-                        Text("\(store.uniqueCount) 件")
+                        Text(tr("Unique \(store.filteredUniqueCount)"))
                             .font(.headline)
                             .monospacedDigit()
                     }
@@ -43,20 +44,21 @@ struct QRScanScreen: View {
     private var content: some View {
         if !QRScannerView.isSupported {
             unavailableView(
-                title: "カメラを利用できません",
-                description: "この端末では QR コードの読み取りに対応していません。"
+                title: tr("Camera unavailable"),
+                description: tr("This device does not support scanning QR codes.")
             )
         } else if authorization == .denied || authorization == .restricted {
             unavailableView(
-                title: "カメラへのアクセスが許可されていません",
-                description: "設定アプリからカメラの利用を許可してください。"
+                title: tr("Camera access denied"),
+                description: tr("Allow camera access in the Settings app.")
             )
         } else {
             ZStack(alignment: .bottom) {
                 QRScannerView(onScan: handleScan)
                     .ignoresSafeArea()
                 if let toast {
-                    toastView(toast)
+                    StatusBanner(message: toast)
+                        .padding(.bottom, 32)
                 }
             }
         }
@@ -66,18 +68,8 @@ struct QRScanScreen: View {
         ContentUnavailableView(title, systemImage: "camera.fill", description: Text(description))
     }
 
-    private func toastView(_ message: String) -> some View {
-        Text(message)
-            .font(.callout.weight(.medium))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.thinMaterial, in: Capsule())
-            .padding(.bottom, 32)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-    }
-
     private func handleScan(_ payload: String) {
-        let result = store.add(rawValue: payload, source: .qrCode)
+        let result = store.add(rawValue: payload, source: .qrCode, deviceName: settings.deviceName)
         showToast(result.message)
     }
 
@@ -93,5 +85,7 @@ struct QRScanScreen: View {
 }
 
 #Preview {
-    QRScanScreen(store: ScanStore(userDefaults: nil))
+    QRScanScreen()
+        .environment(ScanStore.inMemory())
+        .environment(AppSettings())
 }
