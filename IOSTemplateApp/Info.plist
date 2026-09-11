@@ -4,5 +4,9 @@
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>QRコードを読み取るためにカメラを使用します。</string>
+	<key>NFCReaderUsageDescription</key>
+	<string>NFCタグに書き込まれたURLを読み取るためにNFCを使用します。</string>
 </dict>
 </plist>
