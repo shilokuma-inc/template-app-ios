@@ -13,15 +13,15 @@ struct ScanExporterTests {
 
     private var records: [ScanRecord] {
         [
-            ScanRecord(name: "Shilokuma", url: "https://fortee.jp/u/Shilokuma", source: .qrCode, scannedAt: base),
+            ScanRecord(name: "Shilokuma", url: "https://fortee.jp/u/Shilokuma", source: .qrCode, scannedAt: base, deviceName: "iPhone A"),
             ScanRecord(name: "Hoge", url: "https://fortee.jp/u/Hoge", source: .nfc, scannedAt: base.addingTimeInterval(60)),
             ScanRecord(name: "Shilokuma", url: "https://fortee.jp/u/Shilokuma", source: .nfc, scannedAt: base.addingTimeInterval(120)),
             ScanRecord(name: "Piyo", url: "https://fortee.jp/u/Piyo", source: .qrCode, scannedAt: base.addingTimeInterval(180))
         ]
     }
 
-    private func render(_ options: ExportOptions) -> String {
-        ScanExporter(records: records, options: options, exportedAt: exportedAt).render()
+    private func render(_ options: ExportOptions, period: ClosedRange<Date>? = nil) -> String {
+        ScanExporter(records: records, options: options, period: period, exportedAt: exportedAt).render()
     }
 
     @Test func simpleUniqueWithoutCounts() {
@@ -31,7 +31,10 @@ struct ScanExporterTests {
 
     @Test func simpleWithDuplicatesAndCounts() {
         let options = ExportOptions(format: .simple, includeDuplicates: true, includeCounts: true)
-        #expect(render(options) == "Shilokuma, Hoge, Shilokuma, Piyo\n(総件数 4 / 重複なし 3)")
+        let output = render(options)
+        #expect(output.hasPrefix("Shilokuma, Hoge, Shilokuma, Piyo\n("))
+        #expect(output.contains("4"))
+        #expect(output.contains("3"))
     }
 
     @Test func linesUnique() {
@@ -42,11 +45,11 @@ struct ScanExporterTests {
     @Test func csvWithDuplicatesAndCounts() {
         let options = ExportOptions(format: .csv, includeDuplicates: true, includeCounts: true)
         let expected = """
-        name,url,source,scanned_at,duplicate
-        Shilokuma,https://fortee.jp/u/Shilokuma,qr,2025-09-12T00:00:00Z,false
-        Hoge,https://fortee.jp/u/Hoge,nfc,2025-09-12T00:01:00Z,false
-        Shilokuma,https://fortee.jp/u/Shilokuma,nfc,2025-09-12T00:02:00Z,true
-        Piyo,https://fortee.jp/u/Piyo,qr,2025-09-12T00:03:00Z,false
+        name,url,source,scanned_at,device,duplicate
+        Shilokuma,https://fortee.jp/u/Shilokuma,qr,2025-09-12T00:00:00Z,iPhone A,false
+        Hoge,https://fortee.jp/u/Hoge,nfc,2025-09-12T00:01:00Z,,false
+        Shilokuma,https://fortee.jp/u/Shilokuma,nfc,2025-09-12T00:02:00Z,,true
+        Piyo,https://fortee.jp/u/Piyo,qr,2025-09-12T00:03:00Z,,false
 
         total_count,4
         unique_count,3
@@ -68,11 +71,13 @@ struct ScanExporterTests {
 
         #expect(object["exportedAt"] as? String == "2025-09-12T01:00:00Z")
         #expect(object["includeDuplicates"] as? Bool == false)
+        #expect(object["period"] == nil)
         let counts = try #require(object["counts"] as? [String: Int])
         #expect(counts == ["total": 4, "unique": 3])
         let items = try #require(object["items"] as? [[String: Any]])
         #expect(items.map { $0["name"] as? String } == ["Shilokuma", "Hoge", "Piyo"])
         #expect(items.map { $0["source"] as? String } == ["qr", "nfc", "qr"])
+        #expect(items.first?["device"] as? String == "iPhone A")
         #expect(items.allSatisfy { ($0["duplicate"] as? Bool) == false })
     }
 
@@ -84,6 +89,14 @@ struct ScanExporterTests {
         let items = try #require(object["items"] as? [[String: Any]])
         #expect(items.count == 4)
         #expect(items[2]["duplicate"] as? Bool == true)
+    }
+
+    @Test func jsonIncludesPeriodWhenFiltered() throws {
+        let options = ExportOptions(format: .json)
+        let data = Data(render(options, period: base...base.addingTimeInterval(60)).utf8)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let period = try #require(object["period"] as? [String: String])
+        #expect(period == ["start": "2025-09-12T00:00:00Z", "end": "2025-09-12T00:01:00Z"])
     }
 
     @Test func suggestedFileNameUsesFormatExtension() {

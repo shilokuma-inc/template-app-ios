@@ -9,11 +9,14 @@ import Foundation
 struct ScanExporter {
     let records: [ScanRecord]
     let options: ExportOptions
+    /// 出力対象を絞った期間 (フィルター有効時のみ)
+    let period: ClosedRange<Date>?
     let exportedAt: Date
 
-    init(records: [ScanRecord], options: ExportOptions, exportedAt: Date = .now) {
+    init(records: [ScanRecord], options: ExportOptions, period: ClosedRange<Date>? = nil, exportedAt: Date = .now) {
         self.records = records
         self.options = options
+        self.period = period
         self.exportedAt = exportedAt
     }
 
@@ -22,9 +25,7 @@ struct ScanExporter {
 
     /// 出力対象のレコード (`includeDuplicates` に応じて全履歴か重複なしリスト)
     var targetRecords: [ScanRecord] {
-        guard !options.includeDuplicates else { return records }
-        var seen = Set<String>()
-        return records.filter { seen.insert($0.dedupeKey).inserted }
+        options.includeDuplicates ? records : records.uniqueByName
     }
 
     func render() -> String {
@@ -46,7 +47,7 @@ struct ScanExporter {
     // MARK: - Formats
 
     private var countsSummary: String {
-        "総件数 \(totalCount) / 重複なし \(uniqueCount)"
+        tr("Total \(totalCount) / Unique \(uniqueCount)")
     }
 
     private func renderSimple() -> String {
@@ -65,7 +66,7 @@ struct ScanExporter {
 
     private func renderCSV() -> String {
         var seen = Set<String>()
-        var lines = ["name,url,source,scanned_at,duplicate"]
+        var lines = ["name,url,source,scanned_at,device,duplicate"]
         for record in targetRecords {
             let isDuplicate = !seen.insert(record.dedupeKey).inserted
             let fields = [
@@ -73,6 +74,7 @@ struct ScanExporter {
                 record.url,
                 record.source.rawValue,
                 Self.iso8601.string(from: record.scannedAt),
+                record.deviceName ?? "",
                 isDuplicate ? "true" : "false"
             ]
             lines.append(fields.map(Self.csvEscaped).joined(separator: ","))
@@ -93,12 +95,14 @@ struct ScanExporter {
                 url: record.url,
                 source: record.source.rawValue,
                 scannedAt: record.scannedAt,
+                device: record.deviceName,
                 duplicate: !seen.insert(record.dedupeKey).inserted
             )
         }
         let document = JSONDocument(
             exportedAt: exportedAt,
             includeDuplicates: options.includeDuplicates,
+            period: period.map { JSONPeriod(start: $0.lowerBound, end: $0.upperBound) },
             counts: options.includeCounts ? JSONCounts(total: totalCount, unique: uniqueCount) : nil,
             items: items
         )
@@ -126,8 +130,14 @@ struct ScanExporter {
     private struct JSONDocument: Encodable {
         let exportedAt: Date
         let includeDuplicates: Bool
+        let period: JSONPeriod?
         let counts: JSONCounts?
         let items: [JSONItem]
+    }
+
+    private struct JSONPeriod: Encodable {
+        let start: Date
+        let end: Date
     }
 
     private struct JSONCounts: Encodable {
@@ -140,6 +150,7 @@ struct ScanExporter {
         let url: String
         let source: String
         let scannedAt: Date
+        let device: String?
         let duplicate: Bool
     }
 }
