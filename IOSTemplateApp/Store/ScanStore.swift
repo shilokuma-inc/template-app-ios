@@ -14,12 +14,15 @@ enum ScanAddResult: Equatable {
     case duplicate(ScanRecord)
     /// ユーザー名を抽出できなかった
     case invalid(String)
+    /// リダイレクト先の取得に失敗するなどでユーザー名を解決できなかった
+    case unresolved(String)
 
     var message: String {
         switch self {
         case .added(let record): tr("Added \(record.name)")
         case .duplicate(let record): tr("\(record.name) was already scanned")
         case .invalid: tr("Could not read a user name")
+        case .unresolved(let reason): tr("Could not fetch the profile: \(reason)")
         }
     }
 }
@@ -89,12 +92,50 @@ final class ScanStore {
 
     // MARK: - Mutations
 
+    /// `https://fortee.jp/u/<name>` 形式の URL を同期的に追加する。それ以外の形式は `.invalid`
     @discardableResult
     func add(rawValue: String, source: ScanSource, deviceName: String? = nil, at date: Date = .now) -> ScanAddResult {
         guard let name = ForteeUserParser.userName(from: rawValue) else {
             return .invalid(rawValue)
         }
-        let record = ScanRecord(name: name, url: rawValue, source: source, scannedAt: date, deviceName: deviceName)
+        let profile = ResolvedProfile(name: name, profileURL: rawValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        return insert(profile, rawValue: rawValue, source: source, deviceName: deviceName, at: date)
+    }
+
+    /// リダイレクトを解決してから追加する。`.../go-profile` のような URL はこちらを使う
+    @discardableResult
+    func add(
+        rawValue: String,
+        source: ScanSource,
+        deviceName: String? = nil,
+        at date: Date = .now,
+        resolver: ForteeProfileResolver
+    ) async -> ScanAddResult {
+        do {
+            let profile = try await resolver.resolve(rawValue)
+            return insert(profile, rawValue: rawValue, source: source, deviceName: deviceName, at: date)
+        } catch ProfileResolveError.invalidURL {
+            return .invalid(rawValue)
+        } catch {
+            return .unresolved(error.localizedDescription)
+        }
+    }
+
+    private func insert(
+        _ profile: ResolvedProfile,
+        rawValue: String,
+        source: ScanSource,
+        deviceName: String?,
+        at date: Date
+    ) -> ScanAddResult {
+        let record = ScanRecord(
+            name: profile.name,
+            url: rawValue.trimmingCharacters(in: .whitespacesAndNewlines),
+            profileURL: profile.profileURL,
+            source: source,
+            scannedAt: date,
+            deviceName: deviceName
+        )
         let isDuplicate = records.contains { $0.dedupeKey == record.dedupeKey }
         records.append(record)
         save()

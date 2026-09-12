@@ -164,14 +164,22 @@ struct ScanListScreen: View {
 
     private func configureNFCReader() {
         nfcReader.onPayload = { payload in
-            let result = store.add(rawValue: payload, source: .nfc, deviceName: settings.deviceName)
-            showStatus(result.message)
+            showStatus(tr("Looking up profile…"), autoHide: false)
+            Task {
+                let result = await store.add(
+                    rawValue: payload,
+                    source: .nfc,
+                    deviceName: settings.deviceName,
+                    resolver: .live
+                )
+                showStatus(result.message)
+            }
         }
         nfcReader.alertMessageProvider = { payload in
-            guard let name = ForteeUserParser.userName(from: payload) else {
+            guard ForteeUserParser.isURL(payload) else {
                 return tr("Could not read a user name. Try another tag.")
             }
-            return tr("Read \(name). You can keep scanning.")
+            return tr("Tag read. You can keep scanning.")
         }
     }
 
@@ -181,9 +189,10 @@ struct ScanListScreen: View {
         }
     }
 
-    private func showStatus(_ message: String) {
+    private func showStatus(_ message: String, autoHide: Bool = true) {
         statusTask?.cancel()
         withAnimation { statusMessage = message }
+        guard autoHide else { return }
         statusTask = Task {
             try? await Task.sleep(for: .seconds(2.5))
             guard !Task.isCancelled else { return }

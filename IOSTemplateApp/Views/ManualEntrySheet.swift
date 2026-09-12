@@ -13,7 +13,12 @@ struct ManualEntrySheet: View {
     let onResult: (ScanAddResult) -> Void
 
     @State private var text = ""
+    @State private var isSubmitting = false
     @FocusState private var isFocused: Bool
+
+    private var canSubmit: Bool {
+        !isSubmitting && !text.trimmingCharacters(in: .whitespaces).isEmpty
+    }
 
     var body: some View {
         NavigationStack {
@@ -24,7 +29,14 @@ struct ManualEntrySheet: View {
                     .autocorrectionDisabled()
                     .submitLabel(.done)
                     .focused($isFocused)
-                    .onSubmit(submit)
+                    .onSubmit { if canSubmit { submit() } }
+                if isSubmitting {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text(tr("Looking up profile…"))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .navigationTitle(tr("Enter URL"))
             .navigationBarTitleDisplayMode(.inline)
@@ -34,17 +46,27 @@ struct ManualEntrySheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(tr("Add"), action: submit)
-                        .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(!canSubmit)
                 }
             }
             .onAppear { isFocused = true }
         }
+        .interactiveDismissDisabled(isSubmitting)
     }
 
     private func submit() {
-        let result = store.add(rawValue: text, source: .manual, deviceName: settings.deviceName)
-        onResult(result)
-        dismiss()
+        isSubmitting = true
+        Task {
+            let result = await store.add(
+                rawValue: text,
+                source: .manual,
+                deviceName: settings.deviceName,
+                resolver: .live
+            )
+            isSubmitting = false
+            onResult(result)
+            dismiss()
+        }
     }
 }
 

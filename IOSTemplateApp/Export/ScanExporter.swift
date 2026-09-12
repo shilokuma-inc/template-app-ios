@@ -71,7 +71,7 @@ struct ScanExporter {
             let isDuplicate = !seen.insert(record.dedupeKey).inserted
             let fields = [
                 record.name,
-                record.url,
+                record.displayURL,
                 record.source.rawValue,
                 Self.iso8601.string(from: record.scannedAt),
                 record.deviceName ?? "",
@@ -92,7 +92,7 @@ struct ScanExporter {
         let items = targetRecords.map { record in
             JSONItem(
                 name: record.name,
-                url: record.url,
+                url: record.displayURL,
                 source: record.source.rawValue,
                 scannedAt: record.scannedAt,
                 device: record.deviceName,
