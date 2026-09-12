@@ -16,6 +16,7 @@ struct RootView: View {
     enum RootTab: Hashable {
         case scans
         case stats
+        case verify
         case settings
     }
 
@@ -27,6 +28,9 @@ struct RootView: View {
             StatsScreen()
                 .tabItem { Label(tr("Summary"), systemImage: "chart.bar.xaxis") }
                 .tag(RootTab.stats)
+            VerifyScreen()
+                .tabItem { Label(tr("Verify"), systemImage: "checkmark.seal") }
+                .tag(RootTab.verify)
             SettingsScreen()
                 .tabItem { Label(tr("Settings"), systemImage: "gearshape") }
                 .tag(RootTab.settings)

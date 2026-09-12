@@ -74,12 +74,23 @@ final class AppSettings {
     var deviceName: String {
         didSet { defaults.set(deviceName, forKey: Keys.deviceName) }
     }
+    /// 照合に使う自分のチケット。未登録なら `nil`
+    var myTicket: TicketIdentity? {
+        didSet {
+            if let myTicket, let data = try? JSONEncoder().encode(myTicket) {
+                defaults.set(data, forKey: Keys.myTicket)
+            } else {
+                defaults.removeObject(forKey: Keys.myTicket)
+            }
+        }
+    }
 
     private let defaults: UserDefaults
 
     private enum Keys {
         static let appearance = "appearance"
         static let deviceName = "deviceName"
+        static let myTicket = "myTicket"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -87,5 +98,7 @@ final class AppSettings {
         appearance = Appearance(rawValue: defaults.string(forKey: Keys.appearance) ?? "") ?? .system
         language = AppLanguage(rawValue: defaults.string(forKey: L10n.languageKey) ?? "") ?? .system
         deviceName = defaults.string(forKey: Keys.deviceName) ?? UIDevice.current.name
+        myTicket = defaults.data(forKey: Keys.myTicket)
+            .flatMap { try? JSONDecoder().decode(TicketIdentity.self, from: $0) }
     }
 }
