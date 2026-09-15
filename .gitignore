@@ -88,3 +88,16 @@ fastlane/test_output
 # https://github.com/johnno1962/injectionforxcode
 
 iOSInjectionProject/
+
+# このリポジトリ固有
+#
+# CI のワークフローをローカルで再現したときに生成されるもの。
+# 特に private_keys/ は App Store Connect API の秘密鍵なので必ず除外する。
+ExportOptions.plist
+private_keys/
+*.xcarchive
+*.xcresult
+*.ipa/
+
+# macOS
+.DS_Store
