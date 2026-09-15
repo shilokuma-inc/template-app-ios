@@ -1,0 +1,14 @@
+name: Upload
+
+on:
+  push:
+    branches:
+      - develop
+      - 'release/**'
+
+jobs:
+  upload:
+    uses: ./.github/workflows/_archive.yml
+    with:
+      upload: true
+    secrets: inherit

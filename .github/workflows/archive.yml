@@ -1,0 +1,13 @@
+name: Archive
+
+on:
+  push:
+    branches:
+      - '**'
+
+jobs:
+  archive:
+    uses: ./.github/workflows/_archive.yml
+    with:
+      upload: false
+    secrets: inherit
