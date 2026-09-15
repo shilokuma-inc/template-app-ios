@@ -5,32 +5,29 @@
 //  Created by 村石 拓海 on 2024/05/12.
 //
 
-import XCTest
+import Foundation
+import Testing
 @testable import IOSTemplateApp
 
-final class IOSTemplateAppTests: XCTestCase {
-
-    override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
+struct IOSTemplateAppTests {
+    /// Configs/Project.xcconfig の MARKETING_VERSION が「x.y.z」形式で Info.plist に反映されていることを確認する
+    @Test
+    func marketingVersionIsSemanticVersion() throws {
+        let version = try #require(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        )
+        let components = version.split(separator: ".")
+        #expect(components.count == 3, "MARKETING_VERSION は x.y.z 形式で指定する: \(version)")
+        #expect(components.allSatisfy { Int($0) != nil }, "各要素は整数で指定する: \(version)")
     }
 
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
+    /// CURRENT_PROJECT_VERSION が正の整数として Info.plist に反映されていることを確認する
+    @Test
+    func buildNumberIsPositiveInteger() throws {
+        let build = try #require(
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
+        let number = try #require(Int(build), "CURRENT_PROJECT_VERSION は整数で指定する: \(build)")
+        #expect(number > 0)
     }
-
-    func testExample() throws {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // Any test you write for XCTest can be annotated as throws and async.
-        // Mark your test throws to produce an unexpected failure when your test encounters an uncaught error.
-        // Mark your test async to allow awaiting for asynchronous code to complete. Check the results with assertions afterwards.
-    }
-
-    func testPerformanceExample() throws {
-        // This is an example of a performance test case.
-        self.measure {
-            // Put the code you want to measure the time of here.
-        }
-    }
-
 }
