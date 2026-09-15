@@ -1,0 +1,22 @@
+//
+//  Project.xcconfig
+//  IOSTemplateApp
+//
+//  プロジェクト共通のビルド設定。
+//  テンプレートから新規リポジトリを作成したら、まずこのファイルの値を書き換える。
+//  （pbxproj 側にはこれらの値を直接書かず、ここだけを編集する）
+//
+
+// Apple Developer Program の Team ID
+DEVELOPMENT_TEAM = XU74X3434S
+
+// アプリ本体の Bundle Identifier。
+// テストターゲットは $(APP_BUNDLE_IDENTIFIER).Tests / .UITests として派生させる
+APP_BUNDLE_IDENTIFIER = ml.mrs1669.IOSTemplateApp
+
+// バージョン（CFBundleShortVersionString / CFBundleVersion）
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
+
+// 最低サポート OS
+IPHONEOS_DEPLOYMENT_TARGET = 17.0
