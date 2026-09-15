@@ -38,9 +38,6 @@ iOS Application Template (SwiftUI)
           </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
-          <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml?query=branch%3Adevelop">
-            <img src="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/archive.yml/badge.svg?branch=develop" alt="Archive">
-          </a>
         </td>
         <td style="border:2px double #000080;text-align:center;">
           <a href="https://github.com/shilokuma-inc/template-app-ios/actions/workflows/upload.yml?query=branch%3Adevelop">

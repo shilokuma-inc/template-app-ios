@@ -7,11 +7,13 @@ on:
       xcode-version:
         description: maxim-lobanov/setup-xcode に渡す Xcode バージョン
         type: string
-        default: latest-stable
+        # README の Environment と揃える。ランナー側の更新でビルドが変わらないよう固定する
+        default: '26.3'
 
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 30
 
     steps:
       - name: Select Xcode
