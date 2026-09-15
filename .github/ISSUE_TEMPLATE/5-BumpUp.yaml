@@ -1,10 +1,8 @@
 name: バージョンアップ
 description: バージョンアップのIssue
 title: "【UPDATE】Bump up version to v"
-labels: [update]
+labels: []
 projects: []
-assignees:
-  - mrs1669
 body:
   - type: textarea
     id: content
