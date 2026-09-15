@@ -6,8 +6,8 @@
 //
 
 import Foundation
-import Testing
 @testable import IOSTemplateApp
+import Testing
 
 struct IOSTemplateAppTests {
     /// Configs/Project.xcconfig の MARKETING_VERSION が「x.y.z」形式で Info.plist に反映されていることを確認する
