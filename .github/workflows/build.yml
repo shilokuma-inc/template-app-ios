@@ -1,9 +1,11 @@
 name: Build
 
+# assets/** はスクリーンショット置き場でアプリのコードを含まないため除外する。
 on:
   push:
     branches:
       - '**'
+      - '!assets/**'
   pull_request:
 
 permissions:
