@@ -56,7 +56,9 @@ claude --add-dir ../<repo>-ralph-a --add-dir ../<repo>-ralph-b \
        --permission-mode bypassPermissions "<プロンプト>"
 ```
 
-停止は `scripts/ralph-stop.sh`。worktree ごと消すなら `--worktrees`。
+停止は `scripts/ralph-stop.sh`。worktree ごと消すなら、**Claude のセッションが終了してから**
+`scripts/ralph-stop.sh --worktrees` を実行する（実行中のループを止めたのと同じ呼び出しでは、
+作業中のスロットを壊さないよう削除しない）。
 
 ### テンプレートを更新したとき
 
