@@ -1,10 +1,19 @@
 #!/bin/bash
 # ralph-loop の作業環境を用意する。
-#   usage: scripts/ralph-setup.sh [統合ブランチ] [起点ブランチ]
+#   usage: scripts/ralph-setup.sh <epic/機能名> [起点ブランチ]
+# 統合ブランチはテーマ単位で `epic/[機能名]` の形式にする（例: epic/monetization）。
 # 制御用 1 枠 + 作業スロット 2 枠の worktree をリポジトリの隣に作る。
 set -euo pipefail
 
-INTEGRATION="${1:-ralph/integration}"
+INTEGRATION="${1:-}"
+if [[ -z "$INTEGRATION" ]]; then
+  echo "統合ブランチ名を指定してください（例: epic/monetization）" >&2
+  exit 1
+fi
+if [[ "$INTEGRATION" != epic/* ]]; then
+  echo "統合ブランチは epic/[機能名] の形式にしてください（指定: $INTEGRATION）" >&2
+  exit 1
+fi
 BASE="${2:-develop}"
 
 REPO_ROOT=$(git rev-parse --show-toplevel)

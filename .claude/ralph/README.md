@@ -11,7 +11,7 @@
   playbook.template.md          手順。毎イテレーション読み直される
   goal.template.md              タスクと確定済みの決定事項
   state.template.md             in-flight / 回答待ち / 保留 の記録
-  settings.deny.example.json    権限の deny リスト
+  settings.deny.example.json    権限の deny リスト（settings.json にコピーする）
 scripts/
   ralph-setup.sh                worktree と統合ブランチを用意する
   ralph-start.sh                state ファイルを生成する（＝ループ開始）
@@ -54,8 +54,9 @@ claude --add-dir ../<repo>-ralph-a --add-dir ../<repo>-ralph-b \
 
 **統合ブランチを挟む。** `develop` へ直接マージさせると push のたびに Upload 系
 ワークフローが発火し、1タスクごとにビルドが App Store Connect へ積まれる。
-`ralph/integration` に集約し、人間が最後に1本の PR でレビューして取り込む。
-Build / Archive は走るので CI の検証力は保たれる。
+**`epic/[機能名]`**（テーマ単位）に集約し、人間が最後に1本の PR でレビューして取り込む。
+`epic/**` はフィーチャーブランチと同じく Build / Archive が走るので、CI の検証力は保たれる。
+1ループ = 1 epic。epic を分ければ、ループ自体を複数走らせて並列化できる。
 
 **`gh pr checks --watch` を使わない。** 最大10分ブロックしてループが止まる。
 各イテレーションの冒頭で非ブロッキングに確認し、pending なら次のタスクへ進む。
@@ -66,7 +67,11 @@ worktree 2枠で PR を常時2本 in-flight に保てる。
 
 **指示は author で絞る。** public リポジトリでは Discussion / Issue / PR に
 誰でもコメントできる。「本文だけ読む」にすると決定（コメント欄に書かれる）を
-取りこぼすので、**author で判定する**。
+取りこぼすので、**author で判定する**。信用する author は playbook に
+`{{TRUSTED_AUTHORS}}` としてリストで書き、共同開発者が増えたら追記する。
+リポジトリの collaborator から自動で導出しない — 招待した瞬間に自律ループへの
+指示権限が付く形になるため、増やす操作は明示的な判断であるべき。
+信用外 author のコメントは**黙殺せず** state に記録し、人間が判断できるようにする。
 
 **スラッシュコマンドを経由しない。** プラグインのコマンドは名前空間付きで
 解決が不安定なうえ、`/hooks` に Stop hook が表示されないため状態を誤認しやすい。
