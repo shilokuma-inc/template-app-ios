@@ -68,8 +68,21 @@ grep -qxF '.claude/*.local.md' "$EXCLUDE" 2>/dev/null || echo '.claude/*.local.m
 
 # テンプレートを制御用 worktree へ配置
 mkdir -p "$CTL/.claude"
-[[ -f "$CTL/.claude/ralph-playbook.local.md" ]] \
-  || cp .claude/ralph/playbook.template.md "$CTL/.claude/ralph-playbook.local.md"
+LOCAL_PB="$CTL/.claude/ralph-playbook.local.md"
+if [[ -f "$LOCAL_PB" ]]; then
+  # テンプレートは初回しかコピーしない（置換済みの playbook を壊さないため）。
+  # そのため改善が既存の制御用 worktree に届かない。見出し単位で不足を報告する。
+  MISSING=$(comm -23 \
+    <(grep -E '^#{2,3} ' .claude/ralph/playbook.template.md | sort -u) \
+    <(grep -E '^#{2,3} ' "$LOCAL_PB" | sort -u) || true)
+  if [[ -n "$MISSING" ]]; then
+    echo "注意: 既存の playbook にテンプレートの節がありません。手で取り込んでください:" >&2
+    echo "$MISSING" | sed 's/^/      /' >&2
+    echo "      元: $REPO_ROOT/.claude/ralph/playbook.template.md" >&2
+  fi
+else
+  cp .claude/ralph/playbook.template.md "$LOCAL_PB"
+fi
 [[ -f "$CTL/.claude/ralph-goal.local.md" ]] \
   || cp .claude/ralph/goal.template.md "$CTL/.claude/ralph-goal.local.md"
 [[ -f "$CTL/.claude/ralph-state.local.md" ]] \
