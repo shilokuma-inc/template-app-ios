@@ -58,6 +58,14 @@ claude --add-dir ../<repo>-ralph-a --add-dir ../<repo>-ralph-b \
 
 停止は `scripts/ralph-stop.sh`。worktree ごと消すなら `--worktrees`。
 
+### テンプレートを更新したとき
+
+**テンプレートは初回のみコピーされる。** 置換済みの playbook を上書きしないためで、
+改善しても既存の制御用 worktree には自動では届かない。
+
+`ralph-setup.sh` を再実行すると、**既存の playbook に無いテンプレートの節を見出し単位で
+報告する**ので、必要なものを手で取り込む。ゴールと state は影響を受けない。
+
 ## 設計上の要点
 
 **統合ブランチを挟む。** `develop` へ直接マージさせると push のたびに Upload 系
