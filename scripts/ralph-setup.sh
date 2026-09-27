@@ -40,6 +40,8 @@ mkdir -p "$CTL/.claude"
   || cp .claude/ralph/playbook.template.md "$CTL/.claude/ralph-playbook.local.md"
 [[ -f "$CTL/.claude/ralph-goal.local.md" ]] \
   || cp .claude/ralph/goal.template.md "$CTL/.claude/ralph-goal.local.md"
+[[ -f "$CTL/.claude/ralph-state.local.md" ]] \
+  || cp .claude/ralph/state.template.md "$CTL/.claude/ralph-state.local.md"
 [[ -f "$CTL/.claude/settings.local.json" ]] \
   || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.local.json"
 

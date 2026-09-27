@@ -10,6 +10,7 @@
 .claude/ralph/
   playbook.template.md          手順。毎イテレーション読み直される
   goal.template.md              タスクと確定済みの決定事項
+  state.template.md             in-flight / 回答待ち / 保留 の記録
   settings.deny.example.json    権限の deny リスト
 scripts/
   ralph-setup.sh                worktree と統合ブランチを用意する
@@ -71,6 +72,12 @@ worktree 2枠で PR を常時2本 in-flight に保てる。
 解決が不安定なうえ、`/hooks` に Stop hook が表示されないため状態を誤認しやすい。
 `ralph-start.sh` が state ファイルを直接書く方式なら、これらに依存しない。
 `session_id` を空にすると hook 側のセッション照合がスキップされる。
+
+**マージ条件は「全 CI が pass」＋「CodeRabbit の未対応指摘なし」＋「未回答の `ask` なし」。**
+CodeRabbit の指摘はコードレビューとして対応し、各コメントに返信する。
+自分が `ask` を残した PR は**マージせず保留**し、回答が付くまで待つ。
+ただし保留中の PR がスロットを占有すると前に進めなくなるため、
+**スロットは解放して state の「回答待ち」へ移す**。
 
 **`max_iterations: 0`（無制限）で回すなら、詰まりを扱えること。**
 promise は完全一致でしか成立せず「詰まった」を表現できないため、
