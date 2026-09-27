@@ -11,7 +11,7 @@
   playbook.template.md          手順。毎イテレーション読み直される
   goal.template.md              タスクと確定済みの決定事項
   state.template.md             in-flight / 回答待ち / 保留 の記録
-  settings.deny.example.json    権限の deny リスト（settings.json にコピーする）
+  settings.deny.example.json    権限の deny リスト（制御用 worktree の settings.json へ）
 scripts/
   ralph-setup.sh                worktree と統合ブランチを用意する
   ralph-start.sh                state ファイルを生成する（＝ループ開始）
@@ -83,6 +83,12 @@ CodeRabbit の指摘はコードレビューとして対応し、各コメント
 自分が `ask` を残した PR は**マージせず保留**し、回答が付くまで待つ。
 ただし保留中の PR がスロットを占有すると前に進めなくなるため、
 **スロットは解放して state の「回答待ち」へ移す**。
+
+**deny リストは制御用 worktree の `.claude/settings.json` に置き、リポジトリにはコミットしない。**
+`settings.local.json` は個人の上書き用で gitignore される前提のファイルであり、
+Claude Code が権限承認を自動追記するため、deny がそこに同居すると失われうる。
+一方でリポジトリにコミットすると、`gh pr create --base <base>` の deny が
+通常開発の PR 作成まで塞ぐ。制御用 worktree に置けば、ループにだけ効く。
 
 **`max_iterations: 0`（無制限）で回すなら、詰まりを扱えること。**
 promise は完全一致でしか成立せず「詰まった」を表現できないため、

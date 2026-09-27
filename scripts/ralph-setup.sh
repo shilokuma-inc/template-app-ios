@@ -24,7 +24,12 @@ SLOT_A="$PARENT/${REPO_NAME%-ios}-ralph-a"
 SLOT_B="$PARENT/${REPO_NAME%-ios}-ralph-b"
 
 cd "$REPO_ROOT"
-git fetch origin --quiet
+git remote get-url origin >/dev/null 2>&1 \
+  || { echo "リモート origin がありません。先に origin を設定してください" >&2; exit 1; }
+git fetch origin --quiet \
+  || { echo "origin への fetch に失敗しました。ネットワークとアクセス権を確認してください" >&2; exit 1; }
+git rev-parse --verify --quiet "origin/$BASE" >/dev/null \
+  || { echo "origin/$BASE が見つかりません。起点ブランチ名を確認してください" >&2; exit 1; }
 
 # 統合ブランチ（無ければ起点から作る）
 if git show-ref --verify --quiet "refs/heads/$INTEGRATION"; then
@@ -51,8 +56,15 @@ mkdir -p "$CTL/.claude"
   || cp .claude/ralph/goal.template.md "$CTL/.claude/ralph-goal.local.md"
 [[ -f "$CTL/.claude/ralph-state.local.md" ]] \
   || cp .claude/ralph/state.template.md "$CTL/.claude/ralph-state.local.md"
-[[ -f "$CTL/.claude/settings.local.json" ]] \
-  || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.local.json"
+# deny リストは制御用 worktree にだけ置く。リポジトリにコミットすると
+# gh pr create --base <base> の deny が通常開発の PR 作成まで塞いでしまう。
+if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
+  echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
+elif [[ ! -f "$CTL/.claude/settings.json" ]]; then
+  cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  grep -qxF '.claude/settings.json' "$EXCLUDE" 2>/dev/null \
+    || echo '.claude/settings.json' >> "$EXCLUDE"
+fi
 
 cat <<MSG
 
@@ -65,7 +77,7 @@ cat <<MSG
 次の手順:
   1. $CTL/.claude/ralph-playbook.local.md の {{...}} をすべて置き換える
   2. $CTL/.claude/ralph-goal.local.md にタスクを書く
-  3. $CTL/.claude/settings.local.json の保護ブランチ名を確認する
+  3. $CTL/.claude/settings.json の保護ブランチ名を確認する
   4. git push -u origin $INTEGRATION
   5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "<完了語>"
 MSG

@@ -1,5 +1,5 @@
 {
-  "_comment": "`.claude/settings.local.json` にコピーして使う。bypassPermissions 下でも deny は常に優先される。保護ブランチ名はプロジェクトに合わせて書き換えること。",
+  "_comment": "制御用 worktree の `.claude/settings.json` にコピーして使う（ralph-setup.sh が配置する）。リポジトリにはコミットしないこと: gh pr create --base develop の deny が通常開発の PR 作成まで塞ぐため。bypassPermissions 下でも deny は常に優先される。保護ブランチ名はプロジェクトに合わせて書き換えること。",
   "permissions": {
     "deny": [
       "Bash(git push origin develop:*)",
