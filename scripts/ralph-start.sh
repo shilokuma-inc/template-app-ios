@@ -1,6 +1,6 @@
 #!/bin/bash
 # ralph-loop の state ファイルを生成する。制御用 worktree で実行すること。
-#   usage: scripts/ralph-start.sh <完了語> [max_iterations]
+#   usage: scripts/ralph-start.sh 完了語 [max_iterations]
 # max_iterations の既定は 0（無制限）。0 で回す場合、playbook の
 # 「詰まったときの扱い」が書かれていないと無限ループになるので必ず確認する。
 set -euo pipefail

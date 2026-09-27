@@ -1,6 +1,6 @@
 #!/bin/bash
 # ralph-loop の作業環境を用意する。
-#   usage: scripts/ralph-setup.sh <epic/機能名> [起点ブランチ]
+#   usage: scripts/ralph-setup.sh epic/機能名 [起点ブランチ]
 # 統合ブランチはテーマ単位で `epic/[機能名]` の形式にする（例: epic/monetization）。
 # 制御用 1 枠 + 作業スロット 2 枠の worktree をリポジトリの隣に作る。
 set -euo pipefail
@@ -142,5 +142,5 @@ cat <<MSG
   2. $CTL/.claude/ralph-goal.local.md にタスクを書く
   3. $CTL/.claude/settings.json の保護ブランチ名を確認する
   4. git push -u origin $INTEGRATION
-  5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "<完了語>"
+  5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "PHASE1 DONE"   # 完了語は任意
 MSG
