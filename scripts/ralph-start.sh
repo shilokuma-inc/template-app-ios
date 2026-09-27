@@ -7,6 +7,9 @@ set -euo pipefail
 
 PROMISE="${1:-}"
 MAX="${2:-0}"
+# "00" が 0 判定をすり抜けたり、"abc" が Stop hook に弾かれる state を書くのを防ぐ
+[[ "$MAX" =~ ^[0-9]+$ ]] || { echo "max_iterations は 0 以上の整数で指定してください（指定: $MAX）" >&2; exit 1; }
+MAX=$((10#$MAX))
 STATE=".claude/ralph-loop.local.md"
 GOAL=".claude/ralph-goal.local.md"
 PLAYBOOK=".claude/ralph-playbook.local.md"
@@ -26,10 +29,18 @@ fi
 TASKS=$(grep -c '^- \[ \]' "$GOAL" || true)
 [[ "$TASKS" -gt 0 ]] || { echo "$GOAL に未完了タスクがありません" >&2; exit 1; }
 
-if [[ "$MAX" == "0" ]] && ! grep -q '詰まったときの扱い' "$PLAYBOOK"; then
-  echo "max_iterations=0 で回すには playbook に「詰まったときの扱い」が必要です" >&2
-  echo "（着手不能なタスクを保留で閉じられないと無限ループになります）" >&2
-  exit 1
+# 見出しだけでは足りない。無制限運用の安全性は 2 つの手順の実体に依存する
+if [[ "$MAX" -eq 0 ]]; then
+  missing=""
+  grep -q '詰まったときの扱い' "$PLAYBOOK" || missing="$missing\n  - 「詰まったときの扱い」の節"
+  grep -q '※保留'              "$PLAYBOOK" || missing="$missing\n  - 着手不能なタスクを保留として閉じる手順"
+  grep -q '5イテレーション'      "$PLAYBOOK" || missing="$missing\n  - 無進捗が続いたときに自分で停止する手順"
+  if [[ -n "$missing" ]]; then
+    echo "max_iterations=0 で回すには playbook に次が必要です:" >&2
+    printf "$missing\n" >&2
+    echo "（どれか欠けると着手不能なタスクで無限ループになります）" >&2
+    exit 1
+  fi
 fi
 
 cat > "$STATE" <<STATE_EOF
@@ -49,7 +60,7 @@ $PLAYBOOK を読み、そこに書かれた手順を厳密に実行する。1ス
 行き詰まったからといって、条件が真でないのに promise を出してはならない。
 STATE_EOF
 
-echo "未完了タスク $TASKS 件 / 上限 $([[ "$MAX" == "0" ]] && echo '無制限' || echo "$MAX") / 完了語 $PROMISE"
+echo "未完了タスク $TASKS 件 / 上限 $([[ "$MAX" -eq 0 ]] && echo '無制限' || echo "$MAX") / 完了語 $PROMISE"
 echo
 echo "起動コマンド（スロットのパスは環境に合わせて調整）:"
 echo "  claude --add-dir ../\$(basename \$PWD | sed 's/-ctl\$/-a/') \\"

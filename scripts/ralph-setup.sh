@@ -5,6 +5,10 @@
 # 制御用 1 枠 + 作業スロット 2 枠の worktree をリポジトリの隣に作る。
 set -euo pipefail
 
+# Git hook や wrapper から継承した経路変数が別のチェックアウトを指すことがある
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
+
 INTEGRATION="${1:-}"
 if [[ -z "$INTEGRATION" ]]; then
   echo "統合ブランチ名を指定してください（例: epic/monetization）" >&2
@@ -40,9 +44,23 @@ else
 fi
 
 # worktree（制御用は統合ブランチを checkout、スロットは detached）
-[[ -d "$CTL"    ]] || git worktree add "$CTL" "$INTEGRATION"
-[[ -d "$SLOT_A" ]] || git worktree add --detach "$SLOT_A" "$INTEGRATION"
-[[ -d "$SLOT_B" ]] || git worktree add --detach "$SLOT_B" "$INTEGRATION"
+# ディレクトリが在るだけでは足りない。無関係なディレクトリを worktree と誤認して
+# そこへ Claude のアクセス権を渡してしまうため、登録済みかどうかで判定する。
+is_worktree() { git worktree list --porcelain | grep -qxF "worktree $1"; }
+add_worktree() { # $1=パス $2=追加オプション
+  local path="$1"; shift
+  if is_worktree "$path"; then
+    echo "既存の worktree を使います: $path"
+  elif [[ -e "$path" ]]; then
+    echo "エラー: $path は worktree ではありません。別の場所へ退避してください" >&2
+    exit 1
+  else
+    git worktree add "$@" "$path" "$INTEGRATION"
+  fi
+}
+add_worktree "$CTL"
+add_worktree "$SLOT_A" --detach
+add_worktree "$SLOT_B" --detach
 
 # ループの作業ファイルは git に載せない（.gitignore は汚さない）
 EXCLUDE="$(git rev-parse --git-common-dir)/info/exclude"
