@@ -12,6 +12,7 @@
   goal.template.md              タスクと確定済みの決定事項
   state.template.md             in-flight / 回答待ち / 保留 の記録
   settings.deny.example.json    権限の deny リスト（制御用 worktree の settings.json へ）
+  CLAUDE.snippet.md             CLAUDE.md に貼るポインタ（新しいセッションの入口）
 scripts/
   ralph-setup.sh                worktree と統合ブランチを用意する
   ralph-start.sh                state ファイルを生成する（＝ループ開始）
@@ -27,6 +28,13 @@ scripts/
 | `ralph-state.local.md` | in-flight の PR と、人間への申し送り |
 
 いずれも `.git/info/exclude` で除外される（`ralph-setup.sh` が追記する）。
+
+## まず CLAUDE.md にポインタを置く
+
+新しい Claude Code セッションはこの仕組みの存在を知らない。**`CLAUDE.md` は毎セッション
+自動で読み込まれる唯一の入口**なので、`CLAUDE.snippet.md` の内容を `CLAUDE.md` に
+追記しておく。これが無いと、文脈を持たないセッションは state ファイルを手書きしたり、
+統合ブランチを挟まずに develop へ直接マージしたりする。
 
 ## 使い方
 

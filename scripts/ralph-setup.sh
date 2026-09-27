@@ -84,6 +84,18 @@ elif [[ ! -f "$CTL/.claude/settings.json" ]]; then
     || echo '.claude/settings.json' >> "$EXCLUDE"
 fi
 
+# CLAUDE.md は毎セッション読み込まれる唯一の入口。ポインタが無いと、
+# 文脈を持たない新しいセッションが ralph-loop の存在に気づけない。
+# 語の有無ではなく、スニペット固有の見出しで判定する。別文脈の "ralph-loop" で
+# 警告が消えるのを避けるため。見出しはスニペット側から読み、定義の二重化を避ける。
+MARKER=$(grep -m1 '^## ' .claude/ralph/CLAUDE.snippet.md 2>/dev/null || true)
+MARKER=${MARKER:-'## ralph-loop による自律開発'}
+if [[ ! -f CLAUDE.md ]] || ! grep -qF "$MARKER" CLAUDE.md; then
+  echo "警告: CLAUDE.md に ralph-loop の記載がありません。" >&2
+  echo "      .claude/ralph/CLAUDE.snippet.md を CLAUDE.md に追記してください" >&2
+  echo "      （無いと、新しいセッションがこの仕組みに気づけません）" >&2
+fi
+
 cat <<MSG
 
 セットアップ完了
