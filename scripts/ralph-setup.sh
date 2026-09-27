@@ -47,9 +47,29 @@ fi
 # ディレクトリが在るだけでは足りない。無関係なディレクトリを worktree と誤認して
 # そこへ Claude のアクセス権を渡してしまうため、登録済みかどうかで判定する。
 is_worktree() { git worktree list --porcelain | grep -qxF "worktree $1"; }
+# checkout 中のブランチ（refs/heads/...）を返す。detached なら空
+worktree_branch() {
+  git worktree list --porcelain | awk -v wt="worktree $1" '
+    $0 == wt { found = 1; next }
+    found && /^branch / { print $2; exit }
+    found && $0 == "" { exit }'
+}
 add_worktree() { # $1=パス $2=追加オプション
   local path="$1"; shift
   if is_worktree "$path"; then
+    # 制御用が別の統合ブランチのままだと、ループが古いテーマの上で動いてしまう。
+    # 作業を失わないよう自動では切り替えず、人に判断させる。
+    # スロットは detached で、タスクごとに origin/<統合ブランチ> から切り直すので見ない。
+    if [[ "$path" == "$CTL" ]]; then
+      local current
+      current=$(worktree_branch "$path")
+      if [[ "$current" != "refs/heads/$INTEGRATION" ]]; then
+        echo "エラー: 既存の制御用 worktree が $INTEGRATION を checkout していません（現在: ${current:+${current#refs/heads/}}${current:-detached HEAD}）" >&2
+        echo "      作業を退避したうえで $path で $INTEGRATION を checkout するか、" >&2
+        echo "      git worktree remove で削除してから再実行してください" >&2
+        exit 1
+      fi
+    fi
     echo "既存の worktree を使います: $path"
   elif [[ -e "$path" ]]; then
     echo "エラー: $path は worktree ではありません。別の場所へ退避してください" >&2
