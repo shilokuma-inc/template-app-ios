@@ -111,8 +111,11 @@ fi
 # gh pr create --base <base> の deny が通常開発の PR 作成まで塞いでしまう。
 if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
   echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
-elif [[ ! -f "$CTL/.claude/settings.json" ]]; then
-  cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+else
+  [[ -f "$CTL/.claude/settings.json" ]] \
+    || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  # 既存の settings.json も git 管理外なら除外する。コピーした時だけにすると、
+  # 手で置いた settings.json が git add -A で統合ブランチに載ってしまう
   grep -qxF '.claude/settings.json' "$EXCLUDE" 2>/dev/null \
     || echo '.claude/settings.json' >> "$EXCLUDE"
 fi
