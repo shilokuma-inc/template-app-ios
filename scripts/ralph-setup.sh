@@ -58,6 +58,26 @@ add_worktree() { # $1=パス $2=追加オプション
     git worktree add "$@" "$path" "$INTEGRATION"
   fi
 }
+# 制御用 worktree は固定パスなので、別の epic を指定しても登録済みという理由だけで
+# 再利用されてしまう。前の epic の goal / state が残ったまま走るのを防ぐ。
+if is_worktree "$CTL"; then
+  CURRENT=$(git -C "$CTL" symbolic-ref --short HEAD 2>/dev/null || echo "(detached)")
+  if [[ "$CURRENT" != "$INTEGRATION" ]]; then
+    cat >&2 <<ERR
+エラー: 制御用 worktree は別の epic のものです
+      パス:   $CTL
+      現在:   $CURRENT
+      要求:   $INTEGRATION
+
+      前の epic の goal / state がそのまま残っています。終わっているなら
+      片付けてから実行してください:
+        cd "$CTL" && ../$(basename "$REPO_ROOT")/scripts/ralph-stop.sh
+        git worktree remove "$CTL"
+ERR
+    exit 1
+  fi
+fi
+
 add_worktree "$CTL"
 add_worktree "$SLOT_A" --detach
 add_worktree "$SLOT_B" --detach

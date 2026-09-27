@@ -39,14 +39,14 @@ scripts/
 ## 使い方
 
 ```bash
-# 1. worktree と統合ブランチを用意
-scripts/ralph-setup.sh
+# 1. worktree と統合ブランチを用意（epic/[機能名] をテーマ単位で指定する）
+scripts/ralph-setup.sh epic/<機能名>
 
 # 2. 制御用 worktree の playbook と goal を埋める
 #    playbook の {{...}} をすべて置換し、「このアプリ固有の前提」を書く
 
 # 3. 統合ブランチを push
-cd ../<repo>-ralph-ctl && git push -u origin ralph/integration
+cd ../<repo>-ralph-ctl && git push -u origin epic/<機能名>
 
 # 4. ループ開始（state ファイルを生成）
 ../<repo>/scripts/ralph-start.sh "PHASE1 DONE"
