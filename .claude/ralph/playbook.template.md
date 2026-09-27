@@ -86,25 +86,33 @@
 `ask` を残して保留している PR があれば、`{{TRUSTED_AUTHORS}}` のいずれかからの返信が付いたか確認する。
 
 ```
-gh api repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
+gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
   --jq '.[] | "\(.id)\t\(.in_reply_to_id // "-")\t\(.user.login)\t\(.body)"'
 ```
+**`--paginate` を必ず付ける。** 既定では 30 件で打ち切られ、後ろのページにある回答を
+見落としてマージしてしまう。
 **`in_reply_to_id` が自分の ask コメントの id と一致するものだけを回答とみなす。**
 PR 上の別のコメントを回答と誤認すると、未回答のままマージしてしまう。
 
 - 返信なし → 何もしない。次へ
 - 返信あり → 内容に従って対応し（修正が要れば修正コミットを積む）、
   そのコメントに**返信の形で**対応内容とコミットへのリンクを書く。
-  以後は通常の in-flight として B-2 で扱う
+  以後は通常の in-flight として B-2 で扱う。
+
+  **修正コミットを積むにはスロットが要る。** 回答待ちにした時点でスロットは解放済みなので、
+  両スロットが埋まっていたら**この周回では着手せず、次のイテレーションに回す**
+  （state の「回答待ち」に「回答あり・スロット待ち」と書き残す）。
+  修正が不要な回答（「このままで OK」など）なら、スロットを使わずそのまま B-2 へ進む
 
 ### B-2. in-flight PR の判定
 各 PR について、次の3つを**すべて**確認する。
 
 ```
 gh pr checks <番号>          # --watch は絶対に付けない。即座に返すこと
-gh api repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
+gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
   --jq '.[] | "\(.id)\t\(.in_reply_to_id // "-")\t\(.user.login)\t\(.body)"'
 ```
+**`--paginate` を必ず付ける。** 未対応の CodeRabbit コメントを見落とさないため。
 
 | 状態 | 対応 |
 | --- | --- |

@@ -38,22 +38,24 @@ scripts/
 
 ## 使い方
 
+以下は `myapp-ios` で `epic/monetization` を回す場合の例。
+**ブランチ名とパスは自分のものに読み替えること**（そのまま貼っても動くよう、
+山かっこのプレースホルダは使っていない）。
+
 ```bash
-# 1. worktree と統合ブランチを用意
-scripts/ralph-setup.sh
+# 1. worktree と統合ブランチを用意（epic/[機能名] をテーマ単位で指定する）
+scripts/ralph-setup.sh epic/monetization
 
 # 2. 制御用 worktree の playbook と goal を埋める
-#    playbook の {{...}} をすべて置換し、「このアプリ固有の前提」を書く
+#    playbook の二重波かっこをすべて置換し、「このアプリ固有の前提」を書く
 
 # 3. 統合ブランチを push
-cd ../<repo>-ralph-ctl && git push -u origin ralph/integration
+cd ../myapp-ralph-ctl && git push -u origin epic/monetization
 
 # 4. ループ開始（state ファイルを生成）
-../<repo>/scripts/ralph-start.sh "PHASE1 DONE"
+../myapp-ios/scripts/ralph-start.sh "MONETIZATION DONE"
 
-# 5. 起動（ralph-start.sh が出力するコマンドを使う）
-claude --add-dir ../<repo>-ralph-a --add-dir ../<repo>-ralph-b \
-       --permission-mode bypassPermissions "<プロンプト>"
+# 5. 起動（ralph-start.sh が出力するコマンドをそのまま使う）
 ```
 
 停止は `scripts/ralph-stop.sh`。worktree ごと消すなら `--worktrees`。

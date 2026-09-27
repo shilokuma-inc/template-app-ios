@@ -1,6 +1,6 @@
 #!/bin/bash
 # ralph-loop の作業環境を用意する。
-#   usage: scripts/ralph-setup.sh <epic/機能名> [起点ブランチ]
+#   usage: scripts/ralph-setup.sh epic/機能名 [起点ブランチ]
 # 統合ブランチはテーマ単位で `epic/[機能名]` の形式にする（例: epic/monetization）。
 # 制御用 1 枠 + 作業スロット 2 枠の worktree をリポジトリの隣に作る。
 set -euo pipefail
@@ -58,6 +58,26 @@ add_worktree() { # $1=パス $2=追加オプション
     git worktree add "$@" "$path" "$INTEGRATION"
   fi
 }
+# 制御用 worktree は固定パスなので、別の epic を指定しても登録済みという理由だけで
+# 再利用されてしまう。前の epic の goal / state が残ったまま走るのを防ぐ。
+if is_worktree "$CTL"; then
+  CURRENT=$(git -C "$CTL" symbolic-ref --short HEAD 2>/dev/null || echo "(detached)")
+  if [[ "$CURRENT" != "$INTEGRATION" ]]; then
+    cat >&2 <<ERR
+エラー: 制御用 worktree は別の epic のものです
+      パス:   $CTL
+      現在:   $CURRENT
+      要求:   $INTEGRATION
+
+      前の epic の goal / state がそのまま残っています。終わっているなら
+      片付けてから実行してください:
+        cd "$CTL" && ../$(basename "$REPO_ROOT")/scripts/ralph-stop.sh
+        git worktree remove "$CTL"
+ERR
+    exit 1
+  fi
+fi
+
 add_worktree "$CTL"
 add_worktree "$SLOT_A" --detach
 add_worktree "$SLOT_B" --detach
@@ -122,5 +142,5 @@ cat <<MSG
   2. $CTL/.claude/ralph-goal.local.md にタスクを書く
   3. $CTL/.claude/settings.json の保護ブランチ名を確認する
   4. git push -u origin $INTEGRATION
-  5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "<完了語>"
+  5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "PHASE1 DONE"   # 完了語は任意
 MSG
