@@ -1,0 +1,41 @@
+name: Cleanup assets branch
+
+# PR 本文がスクリーンショット置き場として参照している assets/issue-<番号> ブランチを、
+# その PR のマージ時に削除する。PR の diff に画像を含めないための運用を後片付けまで自動化する。
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    name: Cleanup
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Delete assets branches referenced by this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PR 本文はスクリプトへ直接埋め込まず、環境変数経由で渡す
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          branches=$(printf '%s' "$PR_BODY" | grep -oE 'assets/issue-[0-9]+' | sort -u || true)
+          if [ -z "$branches" ]; then
+            echo "参照している assets ブランチはありません"
+            exit 0
+          fi
+
+          for branch in $branches; do
+            if gh api "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$branch"
+              echo "削除しました: $branch"
+            else
+              echo "存在しないためスキップ: $branch"
+            fi
+          done

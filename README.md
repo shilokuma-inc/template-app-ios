@@ -112,10 +112,22 @@ API Key は App Store Connect の「ユーザとアクセス → 統合 → App 
 | `develop` | ✅ | | ✅ |
 | `release/**` | ✅ | | ✅ |
 | その他の作業ブランチ | ✅ | | |
+| `assets/**`（スクリーンショット置き場） | | | |
 | Fork からの Pull Request | ✅ | | |
 
 - Upload は Archive → IPA Export を含むため、`develop` / `release/**` では Archive を別途実行しません
+- `assets/**` はアプリのコードを含まないため、どのワークフローも実行しません
 - Xcode のバージョンは [.github/workflows/_build.yml](.github/workflows/_build.yml) と [.github/workflows/_archive.yml](.github/workflows/_archive.yml) の `xcode-version` で固定しています。Environment の更新時はあわせて変更してください
+
+### 6. PR 本文のスクリーンショット
+
+UI の見た目が変わる変更では、Before / After のスクリーンショットを PR 本文に添付します。
+
+- 画像は PR の diff を汚さないよう **`assets/issue-<Issue番号>` ブランチ**に置き、PR 本文からは raw URL で参照します
+  - 例: `https://raw.githubusercontent.com/<owner>/<repo>/assets/issue-12/12/before.png`
+  - このブランチは [.github/workflows/cleanup-assets-branch.yml](.github/workflows/cleanup-assets-branch.yml) が PR のマージ時に自動削除します。ブランチ名がこの規約から外れると削除されないので注意してください
+- Before / After は表で横に並べ、同一条件（同じ端末・OS・外観モード・データ状態）で撮影します
+- 影響する画面が複数ある場合は画面ごとに用意します。新規画面で Before が無い場合は「なし」と書きます
 
 ## 構成
 
@@ -137,7 +149,8 @@ API Key は App Store Connect の「ユーザとアクセス → 統合 → App 
         ├── _archive.yml     # 共通処理: Archive → Export（→ Upload）（workflow_call）
         ├── build.yml        # 全ブランチの push / Fork からの PR
         ├── archive.yml      # main の push
-        └── upload.yml       # develop / release/** の push
+        ├── upload.yml       # develop / release/** の push
+        └── cleanup-assets-branch.yml # PR マージ時に assets/issue-<番号> ブランチを削除
 ```
 
 - プロジェクトはフォルダ同期グループ（Xcode 16 以降の形式）で管理しているため、ファイルの追加・削除で pbxproj は変わりません
