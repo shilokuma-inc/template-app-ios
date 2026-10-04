@@ -159,7 +159,7 @@ promise は完全一致でしか成立せず「詰まった」を表現できな
   目印が無い ask は AskHub に届かず、回答してもループが再開しない
 - 判断ログ Issue には `decision-log`、実機確認 Issue には `needs-verify` を付ける（AskHub の「急がない」に出る）
 - 最終 PR はループで作らない。オーケストレーターが「最終 PR に載せる内容」を読んで作る
-- ラベルは `ralph-setup.sh` が無ければ作る
+- 不足しているプロトコルのラベルは `ralph-setup.sh` が作る
 
 セットアップ（Mac ごとの手順・設定ファイル）は ask-hub-apple の `docs/orchestrator.md` を参照。
 
