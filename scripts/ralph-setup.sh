@@ -39,8 +39,14 @@ git rev-parse --verify --quiet "origin/$BASE" >/dev/null \
 # ループが ask・判断ログ・実機確認に付け、AskHub とオーケストレーターがこれで集める。無ければ作る
 if command -v gh >/dev/null 2>&1; then
   while IFS='|' read -r name color description; do
-    gh label create "$name" --color "$color" --description "$description" >/dev/null 2>&1 \
-      && echo "ラベルを作成しました: $name"
+    # 既にあるラベルの作成は失敗するので、失敗したら一覧で有無を確かめる（set -e で止めないよう if で受ける）
+    if error=$(gh label create "$name" --color "$color" --description "$description" 2>&1); then
+      echo "ラベルを作成しました: $name"
+    elif ! gh label list --limit 1000 --json name --jq '.[].name' | grep -Fqx -- "$name"; then
+      echo "エラー: ラベルを作成も確認もできませんでした: $name" >&2
+      printf '%s\n' "$error" >&2
+      exit 1
+    fi
   done <<'LABELS'
 needs-answer|D93F0B|人間の回答を待っている質問がある
 ready-for-loop|0E8A16|Discussion の回答が確定し、ループを始めてよい
