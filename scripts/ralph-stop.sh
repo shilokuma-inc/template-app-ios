@@ -12,6 +12,7 @@ unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
 STATE=".claude/ralph-loop.local.md"
 
 WAS_RUNNING=false
+FAILED=false
 if [[ -f "$STATE" ]]; then
   ITER=$(grep '^iteration:' "$STATE" | sed 's/iteration: *//')
   rm "$STATE"
@@ -46,7 +47,13 @@ if [[ "${1:-}" == "--worktrees" ]]; then
     echo "    scripts/ralph-stop.sh --worktrees" >&2
   else
     for slot in "${SLOTS[@]}"; do
-      [[ -d "$slot" ]] && git worktree remove "$slot" && echo "削除: $slot"
+      [[ -d "$slot" ]] || continue
+      if git worktree remove "$slot"; then
+        echo "削除: $slot"
+      else
+        echo "削除に失敗しました: $slot" >&2
+        FAILED=true
+      fi
     done
     echo "制御用 worktree は goal / state を保持しているため残しています"
   fi
@@ -58,3 +65,8 @@ cat <<'MSG'
   - ~/.claude/settings.json の skipDangerousModePermissionPrompt を戻すか検討する
     （残っていると bypassPermissions が警告なしで起動します）
 MSG
+
+if $FAILED; then
+  echo "スロットの worktree の削除が完了していません。上のエラーを確認してください" >&2
+  exit 1
+fi
