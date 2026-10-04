@@ -43,15 +43,6 @@ jobs:
           echo "SIMULATOR_ID=$(jq -r .udid <<<"$simulator")" >> "$GITHUB_ENV"
           echo "project=$project scheme=$project simulator=$(jq -r '"\(.name) (\(.udid))"' <<<"$simulator")"
 
-      - name: Cache Swift packages
-        # 依存の取得（swift-syntax などの clone）に毎回 1 分以上かかるため、SourcePackages ごと保存する。
-        # repositories（git のミラー）を外すと再 clone になるので、ディレクトリ全体を対象にする
-        uses: actions/cache@v4
-        with:
-          path: DerivedData/SourcePackages
-          # restore-keys は付けない。依存が変わったときに古い依存入りのキャッシュを復元し、そのまま保存し直して肥大化するため
-          key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
-
       - name: Resolve Swift packages
         run: |
           xcodebuild -resolvePackageDependencies \
