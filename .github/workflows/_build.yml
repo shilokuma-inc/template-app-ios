@@ -42,9 +42,6 @@ jobs:
           simulator=$(xcrun simctl list devices available -j | jq -r '.devices | to_entries | map(select(.key | contains("SimRuntime.iOS"))) | sort_by(.key | capture("iOS-(?<maj>[0-9]+)-(?<min>[0-9]+)") | [(.maj|tonumber),(.min|tonumber)]) | reverse | map(.value[] | select(.name | startswith("iPhone"))) | .[0]')
           echo "SIMULATOR_ID=$(jq -r .udid <<<"$simulator")" >> "$GITHUB_ENV"
           echo "project=$project scheme=$project simulator=$(jq -r '"\(.name) (\(.udid))"' <<<"$simulator")"
-          # 共有ランナーでは Simulator の起動に 3 分前後かかるため、ここで裏で起動しておく（Build and test の前に待つ）。
-          # 起動中は xcodebuild の開始が待たされるが、テストの直前に起動するより 1〜2 分短くなる
-          nohup xcrun simctl boot "$(jq -r .udid <<<"$simulator")" > "$RUNNER_TEMP/simctl-boot.log" 2>&1 &
 
       - name: Resolve Swift packages
         run: |
@@ -74,8 +71,7 @@ jobs:
             # UI テストは Simulator の clone と起動を含めて 2 分前後かかるため、作業ブランチでは省く
             options+=(-skip-testing:"${SCHEME}UITests")
           fi
-          xcrun simctl bootstatus "$SIMULATOR_ID" -b
-          # 並列テストを有効にすると Simulator の clone を作って起動し直すため、起動済みの Simulator でそのまま実行する
+          # 並列テストを有効にすると Simulator の clone を作って起動するため、clone を作らずに実行する
           xcodebuild test \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
