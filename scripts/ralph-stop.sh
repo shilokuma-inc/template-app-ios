@@ -31,11 +31,12 @@ if [[ "${1:-}" == "--worktrees" ]]; then
   if $WAS_RUNNING; then
     BUSY="いま停止したループのイテレーションが終わっていない可能性があります"
   else
-    # 起動コマンドは --add-dir でスロットを渡すので、引数にスロット名を含む claude を探す。
+    # ループは手で起動しても起動スクリプト（askhub-start-loop）から起動しても、スロットを --add-dir で渡す。
+    # 実行ファイル名（claude とは限らない）ではなく、--add-dir にスロット名を渡しているプロセスを探す。
     # pgrep -f は正規表現なので、スロット名のメタ文字はエスケープして字面どおりに照合する
     for slot in "${SLOTS[@]}"; do
       name=$(basename "$slot" | sed 's/[][\.*^$+?(){}|]/\\&/g')
-      if pgrep -f "claude.*$name" >/dev/null 2>&1; then
+      if pgrep -f -- "--add-dir[ =].*$name" >/dev/null 2>&1; then
         BUSY="$(basename "$slot") を使う claude のプロセスが残っています"
         break
       fi
