@@ -156,8 +156,23 @@ fi
 if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
   echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
 else
-  [[ -f "$CTL/.claude/settings.json" ]] \
-    || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  if [[ -f "$CTL/.claude/settings.json" ]]; then
+    # 既存の settings.json はそのまま使うが、テンプレートの deny が欠けていたら止める。
+    # bypassPermissions で動くループにとって、deny は禁止操作を止める最初の層だから
+    command -v jq >/dev/null 2>&1 \
+      || { echo "エラー: jq が必要です（$CTL/.claude/settings.json の deny の検査に使います）" >&2; exit 1; }
+    DENY_MISSING=$(jq -r --slurpfile have "$CTL/.claude/settings.json" \
+      '.permissions.deny - ($have[0].permissions.deny // []) | .[]' \
+      .claude/ralph/settings.deny.example.json) \
+      || { echo "エラー: $CTL/.claude/settings.json を JSON として読めません" >&2; exit 1; }
+    if [[ -n "$DENY_MISSING" ]]; then
+      echo "エラー: $CTL/.claude/settings.json に次の deny がありません。統合してから再実行してください:" >&2
+      echo "$DENY_MISSING" | sed 's/^/      /' >&2
+      exit 1
+    fi
+  else
+    cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  fi
   # 既存の settings.json も git 管理外なら除外する。コピーした時だけにすると、
   # 手で置いた settings.json が git add -A で統合ブランチに載ってしまう
   grep -qxF '.claude/settings.json' "$EXCLUDE" 2>/dev/null \
