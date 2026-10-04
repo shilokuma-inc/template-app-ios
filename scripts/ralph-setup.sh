@@ -217,7 +217,7 @@ cat <<MSG
 次の手順:
   1. $CTL/.claude/ralph-playbook.local.md の {{...}} をすべて置き換える
   2. $CTL/.claude/ralph-goal.local.md にタスクを書く
-  3. $CTL/.claude/settings.json の保護ブランチ名を確認する
+  3. プロジェクト固有の保護ブランチがあれば、$CTL/.claude/settings.json の deny に追加する（テンプレートの deny は消さない）
   4. git push -u origin $INTEGRATION
   5. cd $CTL && ../${REPO_NAME}/scripts/ralph-start.sh "PHASE1 DONE"   # 完了語は任意
 MSG
