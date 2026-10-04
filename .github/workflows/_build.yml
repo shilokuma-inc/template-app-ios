@@ -9,6 +9,10 @@ on:
         type: string
         # README の Environment と揃える。ランナー側の更新でビルドが変わらないよう固定する
         default: '26.3'
+      ui-tests:
+        description: UI テスト（<プロジェクト名>UITests）も実行するか。false なら Unit テストだけ実行する
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -59,7 +63,15 @@ jobs:
 
       - name: Build and test
         # UI テストは共有ランナー上で起動待ちに失敗することがあるため、失敗したテストだけ最大 2 回まで再試行する
+        env:
+          UI_TESTS: ${{ inputs.ui-tests }}
         run: |
+          options=()
+          if [[ "$UI_TESTS" != "true" ]]; then
+            # UI テストは Simulator の clone と起動を含めて 2 分前後かかるため、作業ブランチでは省く
+            options+=(-skip-testing:"${SCHEME}UITests")
+          fi
+          # 並列テストを有効にすると Simulator の clone を作って起動するため、clone を作らずに実行する
           xcodebuild test \
             -project "$PROJECT_NAME.xcodeproj" \
             -scheme "$SCHEME" \
@@ -67,7 +79,9 @@ jobs:
             -derivedDataPath DerivedData \
             -resultBundlePath TestResults.xcresult \
             -retry-tests-on-failure \
-            -test-iterations 2
+            -test-iterations 2 \
+            -parallel-testing-enabled NO \
+            ${options[@]+"${options[@]}"}
 
       - name: Upload test results
         if: ${{ !cancelled() }}

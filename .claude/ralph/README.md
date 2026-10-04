@@ -38,22 +38,24 @@ scripts/
 
 ## 使い方
 
+以下は `myapp-ios` で `epic/monetization` を回す場合の例。
+**ブランチ名とパスは自分のものに読み替えること**（そのまま貼っても動くよう、
+山かっこのプレースホルダは使っていない）。
+
 ```bash
-# 1. worktree と統合ブランチ（epic/[機能名]）を用意
-scripts/ralph-setup.sh epic/<機能名>
+# 1. worktree と統合ブランチを用意（epic/[機能名] をテーマ単位で指定する）
+scripts/ralph-setup.sh epic/monetization
 
 # 2. 制御用 worktree の playbook と goal を埋める
-#    playbook の {{...}} をすべて置換し、「このアプリ固有の前提」を書く
+#    playbook の二重波かっこをすべて置換し、「このアプリ固有の前提」を書く
 
-# 3. 統合ブランチを push（1 で指定した epic/[機能名]）
-cd ../<repo>-ralph-ctl && git push -u origin epic/<機能名>
+# 3. 統合ブランチを push
+cd ../myapp-ralph-ctl && git push -u origin epic/monetization
 
 # 4. ループ開始（state ファイルを生成）
-../<repo>/scripts/ralph-start.sh "PHASE1 DONE"
+../myapp-ios/scripts/ralph-start.sh "MONETIZATION DONE"
 
-# 5. 起動（ralph-start.sh が出力するコマンドを使う）
-claude --add-dir ../<repo>-ralph-a --add-dir ../<repo>-ralph-b \
-       --permission-mode bypassPermissions "<プロンプト>"
+# 5. 起動（ralph-start.sh が出力するコマンドをそのまま使う）
 ```
 
 停止は `scripts/ralph-stop.sh`。worktree ごと消すなら、**Claude のセッションが終了してから**
@@ -96,11 +98,36 @@ worktree 2枠で PR を常時2本 in-flight に保てる。
 `ralph-start.sh` が state ファイルを直接書く方式なら、これらに依存しない。
 `session_id` を空にすると hook 側のセッション照合がスキップされる。
 
+**Stop hook は作業ディレクトリでループを判定する。** hook は、その時点の作業ディレクトリにある
+`.claude/ralph-loop.local.md` を探す。また `session_id` が空なので、どのセッションのものかは区別しない。そのため次の 2 つに注意する。
+- ループの Claude がスロットに `cd` したままターンを終えると、ループが無いと判断され、**エラーも出さずに止まる**。
+  playbook では、スロットでの操作を `git -C` とサブシェルに限り、ターンの終わりに作業ディレクトリを確認させている
+- **制御用 worktree の中で、別の Claude Code セッションを開かない（`cd` もしない）。** そのセッションも
+  ループ本体として Stop hook に捕まり、ループの指示を受け取ってしまう
+
 **マージ条件は「全 CI が pass」＋「CodeRabbit の未対応指摘なし」＋「未回答の `ask` なし」。**
 CodeRabbit の指摘はコードレビューとして対応し、各コメントに返信する。
 自分が `ask` を残した PR は**マージせず保留**し、回答が付くまで待つ。
 ただし保留中の PR がスロットを占有すると前に進めなくなるため、
 **スロットは解放して state の「回答待ち」へ移す**。
+
+**マージを止める `ask` は「epic にマージした時点で手遅れになるもの」に絞る。**
+epic → develop の最終 PR で人間のレビューは必ず入るので、子 PR ごとに止めると
+同じ確認を2回することになる。ninjacord-ios では ask の大半が「既定値で進めても後から直せる判断」か
+「実機での確認依頼」で、1件ずつ回答するまで後続が止まり、人間がボトルネックになっていた。
+セルフレビューのコメントは次の3種類に分ける。
+
+| 種類 | 条件 | マージ | 行き先 |
+| --- | --- | --- | --- |
+| `ask` | 後から戻せない / App Store Connect などリポジトリ外の作業が必須 / 決定事項と矛盾 / 後続タスクの前提が変わる | 止める | PR コメントで回答を待つ |
+| `decision` | 既定値で進めても後から安く直せる判断 | 止めない | epic ごとの判断ログ Issue に集約 |
+| 実機確認 | 実機・実データでしか確かめられない | 止めない | 個別の Issue に起票し、PR には memo で起票した旨を書く |
+
+判断ログ Issue は、人間が都合のよいときにまとめて見る。チェックを付ければ承認、
+コメントで別案を指示すればループが修正タスクとして積んで epic 内で直す。
+**返答のない decision は既定値のまま確定**し、promise を出す前に state の
+「最終 PR に載せる内容」へ一覧で書き出される。承認・変更された判断はゴールファイルの
+決定事項に書き戻されるので、次の epic へ持ち越せば同じ種類の判断で止まらない。
 
 **deny リストは制御用 worktree の `.claude/settings.json` に置き、リポジトリにはコミットしない。**
 `settings.local.json` は個人の上書き用で gitignore される前提のファイルであり、
