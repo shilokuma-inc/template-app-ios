@@ -58,7 +58,9 @@ cd ../myapp-ralph-ctl && git push -u origin epic/monetization
 # 5. 起動（ralph-start.sh が出力するコマンドをそのまま使う）
 ```
 
-停止は `scripts/ralph-stop.sh`。worktree ごと消すなら `--worktrees`。
+停止は `scripts/ralph-stop.sh`。worktree ごと消すなら、**Claude のセッションが終了してから**
+`scripts/ralph-stop.sh --worktrees` を実行する（実行中のループを止めたのと同じ呼び出しでは、
+作業中のスロットを壊さないよう削除しない）。
 
 ### テンプレートを更新したとき
 

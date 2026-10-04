@@ -47,9 +47,29 @@ fi
 # ディレクトリが在るだけでは足りない。無関係なディレクトリを worktree と誤認して
 # そこへ Claude のアクセス権を渡してしまうため、登録済みかどうかで判定する。
 is_worktree() { git worktree list --porcelain | grep -qxF "worktree $1"; }
+# checkout 中のブランチ（refs/heads/...）を返す。detached なら空
+worktree_branch() {
+  git worktree list --porcelain | awk -v wt="worktree $1" '
+    $0 == wt { found = 1; next }
+    found && /^branch / { print $2; exit }
+    found && $0 == "" { exit }'
+}
 add_worktree() { # $1=パス $2=追加オプション
   local path="$1"; shift
   if is_worktree "$path"; then
+    # 制御用が別の統合ブランチのままだと、ループが古いテーマの上で動いてしまう。
+    # 作業を失わないよう自動では切り替えず、人に判断させる。
+    # スロットは detached で、タスクごとに origin/<統合ブランチ> から切り直すので見ない。
+    if [[ "$path" == "$CTL" ]]; then
+      local current
+      current=$(worktree_branch "$path")
+      if [[ "$current" != "refs/heads/$INTEGRATION" ]]; then
+        echo "エラー: 既存の制御用 worktree が $INTEGRATION を checkout していません（現在: ${current:+${current#refs/heads/}}${current:-detached HEAD}）" >&2
+        echo "      作業を退避したうえで $path で $INTEGRATION を checkout するか、" >&2
+        echo "      git worktree remove で削除してから再実行してください" >&2
+        exit 1
+      fi
+    fi
     echo "既存の worktree を使います: $path"
   elif [[ -e "$path" ]]; then
     echo "エラー: $path は worktree ではありません。別の場所へ退避してください" >&2
@@ -111,8 +131,11 @@ fi
 # gh pr create --base <base> の deny が通常開発の PR 作成まで塞いでしまう。
 if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
   echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
-elif [[ ! -f "$CTL/.claude/settings.json" ]]; then
-  cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+else
+  [[ -f "$CTL/.claude/settings.json" ]] \
+    || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  # 既存の settings.json も git 管理外なら除外する。コピーした時だけにすると、
+  # 手で置いた settings.json が git add -A で統合ブランチに載ってしまう
   grep -qxF '.claude/settings.json' "$EXCLUDE" 2>/dev/null \
     || echo '.claude/settings.json' >> "$EXCLUDE"
 fi
@@ -121,11 +144,13 @@ fi
 # 文脈を持たない新しいセッションが ralph-loop の存在に気づけない。
 # 語の有無ではなく、スニペット固有の見出しで判定する。別文脈の "ralph-loop" で
 # 警告が消えるのを避けるため。見出しはスニペット側から読み、定義の二重化を避ける。
+# ループのセッションは制御用 worktree で起動するので、実行元ではなくそちらの CLAUDE.md を見る。
+# 実行元のブランチにだけ記載があっても、統合ブランチに無ければ新しいセッションには届かない。
 MARKER=$(grep -m1 '^## ' .claude/ralph/CLAUDE.snippet.md 2>/dev/null || true)
 MARKER=${MARKER:-'## ralph-loop による自律開発'}
-if [[ ! -f CLAUDE.md ]] || ! grep -qF "$MARKER" CLAUDE.md; then
-  echo "警告: CLAUDE.md に ralph-loop の記載がありません。" >&2
-  echo "      .claude/ralph/CLAUDE.snippet.md を CLAUDE.md に追記してください" >&2
+if [[ ! -f "$CTL/CLAUDE.md" ]] || ! grep -qF "$MARKER" "$CTL/CLAUDE.md"; then
+  echo "警告: 制御用 worktree の CLAUDE.md に ralph-loop の記載がありません（$INTEGRATION）。" >&2
+  echo "      .claude/ralph/CLAUDE.snippet.md を $INTEGRATION の CLAUDE.md に追記してください" >&2
   echo "      （無いと、新しいセッションがこの仕組みに気づけません）" >&2
 fi
 
