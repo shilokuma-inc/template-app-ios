@@ -230,9 +230,11 @@ gh pr merge <番号> --squash --delete-branch
    -->
 7. push して PR を作る（**base は必ず `{{INTEGRATION_BRANCH}}`**）:
    ```
-   gh pr create --base {{INTEGRATION_BRANCH}} --title '【TYPE】…' --assignee @me --body '…'
+   git -C <スロット> push -u origin <PRのブランチ>
+   gh pr create --base {{INTEGRATION_BRANCH}} --head <PRのブランチ> --title '【TYPE】…' --assignee @me --body '…'
    ```
    本文は `.github/pull_request_template.md` に従い、関連 Issue に `- resolve #<番号>` を書く
+   作業ディレクトリは制御用 worktree（統合ブランチ）のままなので、`--head` を省くと統合ブランチから PR を作ろうとして失敗する
 8. 自分の diff をセルフレビューし、補足が必要な行にだけ badge 付きコメントを付ける
    （基本 `memo-badge`、確認したい点は `ask-badge`。diff を読めば分かることには付けない）。
    **`ask` を付けた PR は回答が付くまでマージされない**ので、下記「ask にする条件」に
