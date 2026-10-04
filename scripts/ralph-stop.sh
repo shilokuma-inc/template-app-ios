@@ -31,19 +31,23 @@ if [[ "${1:-}" == "--worktrees" ]]; then
   if $WAS_RUNNING; then
     BUSY="いま停止したループのイテレーションが終わっていない可能性があります"
   else
-    # 起動コマンドは --add-dir でスロットを渡すので、引数にスロット名を含む claude を探す。
-    # pgrep -f は正規表現なので、スロット名のメタ文字はエスケープして字面どおりに照合する
+    # ループは手で起動しても起動スクリプト（askhub-start-loop）から起動しても、スロットを --add-dir で渡す
+    # （手では ralph-start.sh が表示する ../<スロット名>、起動スクリプトからは絶対パス）。
+    # 実行ファイル名（claude とは限らない）ではなく、--add-dir の値がこのスロットを指すプロセスを探す。
+    # pgrep -f は正規表現なので、パスのメタ文字はエスケープして字面どおりに照合する（空白を含むパスもそのまま一致する）
+    escape() { printf '%s' "$1" | sed 's/[][\.*^$+?(){}|]/\\&/g'; }
     for slot in "${SLOTS[@]}"; do
-      name=$(basename "$slot" | sed 's/[][\.*^$+?(){}|]/\\&/g')
-      if pgrep -f "claude.*$name" >/dev/null 2>&1; then
-        BUSY="$(basename "$slot") を使う claude のプロセスが残っています"
+      absolute=$(escape "$slot")
+      relative=$(escape "../$(basename "$slot")")
+      if pgrep -f -- "--add-dir[ =]($absolute|$relative)( |\$)" >/dev/null 2>&1; then
+        BUSY="$(basename "$slot") を --add-dir で使うプロセスが残っています"
         break
       fi
     done
   fi
   if [[ -n "$BUSY" ]]; then
     echo "スロットの worktree は削除していません: $BUSY" >&2
-    echo "  Claude のセッションが終了したのを確認してから、もう一度実行してください:" >&2
+    echo "  そのプロセスが終了したのを確認してから、もう一度実行してください:" >&2
     echo "    scripts/ralph-stop.sh --worktrees" >&2
   else
     for slot in "${SLOTS[@]}"; do
