@@ -151,13 +151,41 @@ fi
   || cp .claude/ralph/goal.template.md "$CTL/.claude/ralph-goal.local.md"
 [[ -f "$CTL/.claude/ralph-state.local.md" ]] \
   || cp .claude/ralph/state.template.md "$CTL/.claude/ralph-state.local.md"
+# 既存の settings.json にテンプレートの deny が欠けていたら止める。
+# bypassPermissions で動くループにとって、deny は禁止操作を止める最初の層だから
+check_deny() {
+  local settings="$1"
+  command -v jq >/dev/null 2>&1 \
+    || { echo "エラー: jq が必要です（$settings の deny の検査に使います）" >&2; exit 1; }
+  local missing
+  missing=$(jq -r --slurpfile have "$settings" \
+    '.permissions.deny - ($have[0].permissions.deny // []) | .[]' \
+    .claude/ralph/settings.deny.example.json) \
+    || { echo "エラー: $settings を JSON として読めません" >&2; exit 1; }
+  if [[ -n "$missing" ]]; then
+    echo "エラー: $settings に次の deny がありません。統合してから再実行してください:" >&2
+    echo "$missing" | sed 's/^/      /' >&2
+    exit 1
+  fi
+}
+
 # deny リストは制御用 worktree にだけ置く。リポジトリにコミットすると
 # gh pr create --base <base> の deny が通常開発の PR 作成まで塞いでしまう。
 if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
   echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
+  # git 管理下でも、制御用 worktree で効く設定に deny が揃っていなければ止める
+  if [[ -f "$CTL/.claude/settings.json" ]]; then
+    check_deny "$CTL/.claude/settings.json"
+  else
+    echo "エラー: $CTL/.claude/settings.json がありません。deny リストを統合してから再実行してください" >&2
+    exit 1
+  fi
 else
-  [[ -f "$CTL/.claude/settings.json" ]] \
-    || cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  if [[ -f "$CTL/.claude/settings.json" ]]; then
+    check_deny "$CTL/.claude/settings.json"
+  else
+    cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
+  fi
   # 既存の settings.json も git 管理外なら除外する。コピーした時だけにすると、
   # 手で置いた settings.json が git add -A で統合ブランチに載ってしまう
   grep -qxF '.claude/settings.json' "$EXCLUDE" 2>/dev/null \
