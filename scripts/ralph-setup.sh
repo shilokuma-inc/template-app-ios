@@ -35,6 +35,24 @@ git fetch origin --quiet \
 git rev-parse --verify --quiet "origin/$BASE" >/dev/null \
   || { echo "origin/$BASE が見つかりません。起点ブランチ名を確認してください" >&2; exit 1; }
 
+# AskHub のプロトコルのラベル（shilokuma-inc/ask-hub-apple の docs/protocol.md）。
+# ループが ask・判断ログ・実機確認に付け、AskHub とオーケストレーターがこれで集める。無ければ作る
+if command -v gh >/dev/null 2>&1; then
+  while IFS='|' read -r name color description; do
+    gh label create "$name" --color "$color" --description "$description" >/dev/null 2>&1 \
+      && echo "ラベルを作成しました: $name"
+  done <<'LABELS'
+needs-answer|D93F0B|人間の回答を待っている質問がある
+ready-for-loop|0E8A16|Discussion の回答が確定し、ループを始めてよい
+idea-request|5319E7|アプリから出した新機能の依頼
+decision-log|1D76DB|epic ごとの仮決め一覧（判断ログ）
+needs-verify|FBCA04|実機・実データでの確認が必要
+epic-final|B60205|epic から develop への最終 PR
+LABELS
+else
+  echo "警告: gh が無いため、AskHub のラベルを確認できませんでした" >&2
+fi
+
 # 統合ブランチ（無ければ起点から作る）
 if git show-ref --verify --quiet "refs/heads/$INTEGRATION"; then
   echo "既存のブランチを使います: $INTEGRATION"
