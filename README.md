@@ -11,7 +11,7 @@ SwiftUI のプロジェクト一式と、ビルド・テスト・Archive・TestF
 - iOS 17.0 以上
 - Swift 6（Swift 6 言語モード / Strict Concurrency）
 - SwiftUI / Swift Testing / XCTest（UI テスト）
-- SwiftLint 0.65.1（Build Tool Plugin）
+- SwiftLint 0.65.1（Build Tool Plugin。バイナリだけを配布する [SwiftLintPlugins](https://github.com/SimplyDanny/SwiftLintPlugins) 経由）
 
 ## Status
 
@@ -118,10 +118,13 @@ SKU は Bundle ID と同じ値にします。SKU はユーザーには見えな�
 | `main` | ✅ | ✅ | |
 | `develop` | ✅ | | ✅ |
 | `release/**` | ✅ | | ✅ |
-| その他の作業ブランチ | ✅ | | |
+| その他の作業ブランチ | ✅（Unit テストのみ） | | |
+| Pull Request の作成時（opened / reopened / ready_for_review） | ✅ | | |
 | Fork からの Pull Request | ✅ | | |
+| `assets/**`（PR 用スクリーンショット置き場） | | | |
 
 - Upload は Archive → IPA Export を含むため、`develop` / `release/**` では Archive を別途実行しません
+- 作業ブランチへの push では、時間のかかる UI テスト（`<プロジェクト名>UITests`）を省いて Unit テストだけ実行します。UI テストは Pull Request の作成時と `main` / `develop` / `release/**` への push で実行します。Fork からの Pull Request は push で実行されないため、更新（synchronize）を含むすべてのイベントで UI テストまで実行します
 - Xcode のバージョンは [.github/workflows/_build.yml](.github/workflows/_build.yml) と [.github/workflows/_archive.yml](.github/workflows/_archive.yml) の `xcode-version` で固定しています。Environment の更新時はあわせて変更してください
 
 ## 構成
