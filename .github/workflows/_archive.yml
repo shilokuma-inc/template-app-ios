@@ -63,6 +63,14 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "project=$project scheme=$project"
 
+      - name: Cache Swift packages
+        # _build.yml と同じパス・キーにして、Build で保存したキャッシュをそのまま使う
+        uses: actions/cache@v4
+        with:
+          path: DerivedData/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Archive
         run: |
           xcodebuild archive \
@@ -70,6 +78,7 @@ jobs:
             -scheme "$SCHEME" \
             -sdk iphoneos \
             -configuration Release \
+            -derivedDataPath DerivedData \
             -archivePath "$RUNNER_TEMP/build.xcarchive" \
             CODE_SIGNING_ALLOWED=NO
 
