@@ -106,6 +106,19 @@ jobs:
           path: ${{ runner.temp }}/export/*.ipa
           if-no-files-found: error
 
+      - name: Check app exists in App Store Connect
+        # App Store Connect にアプリが無いと、アップロードが "Error Downloading App Information" で失敗し原因が分かりにくい。
+        # アプリの作成は API でできないため、ここでは読み取りだけで確認し、無ければ作成手順を Job Summary に出して止める。
+        # Bundle ID は直前の Export で Developer Portal に登録済みなので、この時点で Web 画面から選べる
+        if: ${{ inputs.upload }}
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+        run: |
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$RUNNER_TEMP/build.xcarchive/Info.plist") \
+          APP_NAME="$PROJECT_NAME" \
+            ruby .github/scripts/check-app-store-app.rb
+
       - name: Upload to App Store Connect
         if: ${{ inputs.upload }}
         env:
