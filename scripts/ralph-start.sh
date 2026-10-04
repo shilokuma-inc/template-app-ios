@@ -62,6 +62,9 @@ STATE_EOF
 
 echo "未完了タスク $TASKS 件 / 上限 $([[ "$MAX" -eq 0 ]] && echo '無制限' || echo "$MAX") / 完了語 $PROMISE"
 echo
+echo "注意: この制御用 worktree の中で、ほかの Claude Code セッションを開いたり cd したりしないこと。"
+echo "      Stop hook に捕まり、そのセッションがループ本体として扱われる。"
+echo
 echo "起動コマンド（スロットのパスは環境に合わせて調整）:"
 echo "  claude --add-dir ../\$(basename \$PWD | sed 's/-ctl\$/-a/') \\"
 echo "         --add-dir ../\$(basename \$PWD | sed 's/-ctl\$/-b/') \\"
