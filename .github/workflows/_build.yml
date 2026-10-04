@@ -53,8 +53,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: DerivedData/SourcePackages
+          # restore-keys は付けない。依存が変わったときに古い依存入りのキャッシュを復元し、そのまま保存し直して肥大化するため
           key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: spm-${{ runner.os }}-
 
       - name: Resolve Swift packages
         run: |
