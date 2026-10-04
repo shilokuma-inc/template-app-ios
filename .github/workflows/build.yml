@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - '**'
+      # assets/** は PR 用スクリーンショットの置き場でアプリのコードを含まないため除外する
+      - '!assets/**'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
