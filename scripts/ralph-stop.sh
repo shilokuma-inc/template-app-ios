@@ -36,15 +36,16 @@ if [[ "${1:-}" == "--worktrees" ]]; then
     # pgrep -f は正規表現なので、スロット名のメタ文字はエスケープして字面どおりに照合する
     for slot in "${SLOTS[@]}"; do
       name=$(basename "$slot" | sed 's/[][\.*^$+?(){}|]/\\&/g')
-      if pgrep -f -- "--add-dir[ =].*$name" >/dev/null 2>&1; then
-        BUSY="$(basename "$slot") を使う claude のプロセスが残っています"
+      # --add-dir の値（パスの末尾）がスロット名と一致するものだけを見る。後ろの引数に名前が出るだけでは一致させない
+      if pgrep -f -- "--add-dir[ =]([^ ]*/)?$name( |\$)" >/dev/null 2>&1; then
+        BUSY="$(basename "$slot") を --add-dir で使うプロセスが残っています"
         break
       fi
     done
   fi
   if [[ -n "$BUSY" ]]; then
     echo "スロットの worktree は削除していません: $BUSY" >&2
-    echo "  Claude のセッションが終了したのを確認してから、もう一度実行してください:" >&2
+    echo "  そのプロセスが終了したのを確認してから、もう一度実行してください:" >&2
     echo "    scripts/ralph-stop.sh --worktrees" >&2
   else
     for slot in "${SLOTS[@]}"; do
