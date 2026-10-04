@@ -255,6 +255,22 @@ epic → `{{BASE_BRANCH}}` の最終 PR で人間のレビューは必ず入る�
 
 ask を付けたら、何をすれば回答になるか（どちらを選ぶか・どこで何を設定するか）を具体的に書く。
 
+**ask は AskHub のプロトコルに従って書く**（人間は AskHub の受信箱で回答し、オーケストレーターが回答を見てループを再開する。
+形式の正本は shilokuma-inc/ask-hub-apple の `docs/protocol.md`）:
+
+1. コメントの**先頭**に質問の目印を置き、続けてバッジと質問を書く:
+   ```
+   <!-- ask-hub:question id="pr<PR番号>-<連番>" options="案1|案2" -->
+   ![ask-badge](https://img.shields.io/badge/review-ask-yellowgreen.svg)
+   <質問。何を選べば回答になるか>
+   ```
+   - `options` は AskHub の選択肢ボタンになる。自由記述で答えてほしいときは省略する
+   - 値に `"`・改行・`-->` は使えない。選択肢の中に `|` は使えない
+2. PR に `needs-answer` を付ける: `gh pr edit <番号> --add-label needs-answer`
+3. 回答は `回答: <選んだ選択肢>` で始まる返信で届く（続けて自由記述が付くことがある）。
+   PR の未回答の ask が無くなったら `gh pr edit <番号> --remove-label needs-answer` で外す
+   （オーケストレーターも外すが、外れていなくても害は無い）
+
 ### 仮決め（decision）の扱い（マージを止めない）
 ask の条件に当てはまらない判断（数値・既定の挙動・文言・表示の範囲など、後から安く直せるもの）は、
 **既定値を自分で選んで実装を進め、マージも止めない。** 人間は epic ごとの判断ログ Issue でまとめて確認する。
@@ -272,7 +288,7 @@ ask の条件に当てはまらない判断（数値・既定の挙動・文言�
    ```
 2. 判断ログ Issue に 1 行追記する。state の「判断ログ Issue」が空なら、最初の 1 件で作る:
    ```
-   gh issue create --title '【CHORE】{{INTEGRATION_BRANCH}} の仮決め一覧' --assignee @me --body '…'
+   gh issue create --title '【CHORE】{{INTEGRATION_BRANCH}} の仮決め一覧' --assignee @me --label decision-log --body '…'
    ```
    本文の冒頭に「チェックを付けたものは承認。変更したいものはコメントで `#<PR番号> は別案 1 で`
    のように指示。返答のないものは既定値のまま確定する」と書き、以降に 1 行ずつ追記する:
@@ -290,7 +306,7 @@ Simulator・ローカルビルドでは確かめられず、実機や実デー�
 
 1. Issue を起票する:
    ```
-   gh issue create --title '【CHORE】実機確認: <確認すること>' --assignee @me --body '…'
+   gh issue create --title '【CHORE】実機確認: <確認すること>' --assignee @me --label needs-verify --body '…'
    ```
    本文には、元の PR 番号・確認手順・期待する結果を書く
 2. PR の該当行に `memo-badge` で起票した旨だけを書く:
@@ -328,8 +344,11 @@ state ファイルに停止理由を明記したうえで `rm .claude/ralph-loop
 - **全タスクが `[x]`（完了または保留）か `※回答待ち` 付き、かつ作業中の in-flight がゼロ**
   → `<promise>{{PROMISE}}</promise>` を出力。
   **回答待ちの PR と、返答のない decision が残っていてもよい**（ループ側にできることが無いため）。
-  promise を出す前に、state の「最終 PR に載せる内容」を埋める。人間はこれを epic →
-  `{{BASE_BRANCH}}` の PR 本文に貼ってレビューする:
+  promise を出す前に、state の「最終 PR に載せる内容」を埋める。
+  **epic → `{{BASE_BRANCH}}` の最終 PR はループでは作らない**（`gh pr create --base {{BASE_BRANCH}}` は deny で拒否される）。
+  オーケストレーター（askhub-orchestrator）がループの停止と「最終 PR に載せる内容」を見て、`epic-final` 付きで作る。
+  オーケストレーターを使っていない環境では、人間がこの内容を PR 本文に貼って作る。
+  「最終 PR に載せる内容」には次を書く:
   - 回答待ちの PR と ask の内容
   - 判断ログ Issue のうち返答のない decision（既定値のまま確定する旨を添える）
   - 実機確認 Issue の一覧

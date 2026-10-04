@@ -141,6 +141,28 @@ promise は完全一致でしか成立せず「詰まった」を表現できな
 タスクを**保留として閉じられる**ようにし、無進捗が続いたら自分で停止させる。
 `ralph-start.sh` はこの節が playbook に無いと 0 での起動を拒否する。
 
+## AskHub・オーケストレーターとの連携
+
+[AskHub](https://github.com/shilokuma-inc/ask-hub-apple) は、人間の判断が要るものだけを集めて iPhone / Mac から回答する受信箱アプリ。
+家の Mac に常駐するオーケストレーター（`askhub-orchestrator`）が回答を見て、このループを自動で起動・再開し、最終 PR を作る。
+手で `ralph-start.sh` を叩く運用から、次の流れに置き換わる。
+
+| きっかけ | 自動で起きること |
+| --- | --- |
+| Discussion の質問に回答して「確定」（`ready-for-loop`） | 起動スクリプト（`askhub-start-loop`）が goal を作り、`ralph-setup.sh` → `ralph-start.sh` → ループを起動 |
+| PR の ask に回答（`needs-answer`） | 止まっていたループを再開 |
+| 全タスク完了 | オーケストレーターが epic → develop の最終 PR（`epic-final`）を作る |
+
+**このテンプレートの側で守ること**（形式の正本は ask-hub-apple の `docs/protocol.md`）:
+
+- ask のコメントは質問の目印（`<!-- ask-hub:question id="…" options="…" -->`）で始め、PR に `needs-answer` を付ける。
+  目印が無い ask は AskHub に届かず、回答してもループが再開しない
+- 判断ログ Issue には `decision-log`、実機確認 Issue には `needs-verify` を付ける（AskHub の「急がない」に出る）
+- 最終 PR はループで作らない。オーケストレーターが「最終 PR に載せる内容」を読んで作る
+- 不足しているプロトコルのラベルは `ralph-setup.sh` が作る
+
+セットアップ（Mac ごとの手順・設定ファイル）は ask-hub-apple の `docs/orchestrator.md` を参照。
+
 ## ループに向かないタスク
 
 判定基準は**自動検証器があるか**。lint とビルドで正しさを担保できないものは向かない。
