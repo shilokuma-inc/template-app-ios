@@ -26,7 +26,12 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          number=$(printf '%s\n' "$BODY" | sed -n 's/.*<!-- ask-hub:discussion \([0-9][0-9]*\) -->.*/\1/p' | head -n 1)
+          # オーケストレーターが書く先頭の 2 行（見出しと目印の番号が一致するもの）だけを受け付ける。
+          # 本文の途中に引用された目印で、別の Discussion を閉じないため。ブラウザで編集された本文の CRLF は除く
+          number=$(printf '%s\n' "$BODY" | tr -d '\r' | awk '
+            NR == 1 { if ($0 ~ /^ゴール元: Discussion #[0-9]+$/) { sub(/^ゴール元: Discussion #/, ""); heading = $0 } else exit }
+            NR == 2 { if ($0 == "<!-- ask-hub:discussion " heading " -->") print heading; exit }
+          ')
           if [ -z "$number" ]; then
             echo "PR 本文にゴール元の Discussion の目印がありません。何もしません"
             exit 0
