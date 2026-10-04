@@ -2,11 +2,19 @@ name: Build
 
 on:
   push:
+    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
     branches:
       - '**'
       # assets/** は PR 用スクリーンショットの置き場でアプリのコードを含まないため除外する
       - '!assets/**'
   pull_request:
+    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
