@@ -152,6 +152,7 @@ promise は完全一致でしか成立せず「詰まった」を表現できな
 | Discussion の質問に回答して「確定」（`ready-for-loop`） | 起動スクリプト（`askhub-start-loop`）が goal を作り、`ralph-setup.sh` → `ralph-start.sh` → ループを起動 |
 | PR の ask に回答（`needs-answer`） | 止まっていたループを再開 |
 | 全タスク完了 | オーケストレーターが epic → develop の最終 PR（`epic-final`）を作る |
+| 最終 PR を develop にマージ | ワークフロー（`close-goal-discussion.yml`）が、ゴール元の Discussion を解決済みで閉じる |
 
 **このテンプレートの側で守ること**（形式の正本は ask-hub-apple の `docs/protocol.md`）:
 
