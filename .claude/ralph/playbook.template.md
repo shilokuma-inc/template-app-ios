@@ -229,13 +229,13 @@ gh pr merge <番号> --squash --delete-branch
        「文言を追加した場合はローカライズ検証を流す」
    常に流すには重いものを、条件付きで確実に流させるための枠。
    -->
-7. push して PR を作る（**base は必ず `{{INTEGRATION_BRANCH}}`**）:
+7. スロットのブランチを push して PR を作る（**base は必ず `{{INTEGRATION_BRANCH}}`、head はスロットで作ったブランチ**）:
    ```
    git -C <スロット> push -u origin <PRのブランチ>
    gh pr create --base {{INTEGRATION_BRANCH}} --head <PRのブランチ> --title '【TYPE】…' --assignee @me --body '…'
    ```
-   本文は `.github/pull_request_template.md` に従い、関連 Issue に `- resolve #<番号>` を書く
    作業ディレクトリは制御用 worktree（統合ブランチ）のままなので、`--head` を省くと統合ブランチから PR を作ろうとして失敗する
+   本文は `.github/pull_request_template.md` に従い、関連 Issue に `- resolve #<番号>` を書く
 8. 自分の diff をセルフレビューし、補足が必要な行にだけ badge 付きコメントを付ける
    （基本 `memo-badge`、確認したい点は `ask-badge`。diff を読めば分かることには付けない）。
    **`ask` を付けた PR は回答が付くまでマージされない**ので、下記「ask にする条件」に
@@ -345,8 +345,10 @@ state ファイルに停止理由を明記したうえで `rm .claude/ralph-loop
 **判定の前に `pwd` を実行し、制御ディレクトリ（`{{WORKTREE_CTL}}`）に居ることを確かめる。** 違っていたら `cd` で戻る。
 スロットに居たままターンを終えると、Stop hook がループを見つけられずに止まる。
 
-- **全タスクが `[x]`（完了または保留）か `※回答待ち` 付き、かつ作業中の in-flight がゼロ**
+- **全タスクが `[x]`（完了または保留）か `※回答待ち` 付き、作業中の in-flight がゼロ、
+  かつ state の「回答待ち」表に `回答あり・スロット待ち` の行が無い**
   → `<promise>{{PROMISE}}</promise>` を出力。
+  `回答あり・スロット待ち` の PR は、回答を処理できる（スロットが空けば次の周回の B-1 で拾う）ので、残っているうちは終えない
   **回答待ちの PR と、返答のない decision が残っていてもよい**（ループ側にできることが無いため）。
   promise を出す前に、state の「最終 PR に載せる内容」を埋める。
   **epic → `{{BASE_BRANCH}}` の最終 PR はループでは作らない**（`gh pr create --base {{BASE_BRANCH}}` は deny で拒否される）。
