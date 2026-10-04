@@ -28,6 +28,14 @@ fi
 
 TASKS=$(grep -c '^- \[ \]' "$GOAL" || true)
 [[ "$TASKS" -gt 0 ]] || { echo "$GOAL に未完了タスクがありません" >&2; exit 1; }
+# goal.template.md の雛形のまま（{{日本語タイトル}} などが残る）でも未完了タスクの数は数えられてしまう。
+# 起動すると STEP A を飛ばして雛形のタスクに着手するので、プレースホルダが残っていれば止める
+GOAL_LEFTOVER=$(grep -o '{{[^}]*}}' "$GOAL" | sort -u || true)
+if [[ -n "$GOAL_LEFTOVER" ]]; then
+  echo "$GOAL に未置換のプレースホルダが残っています（雛形のままです）:" >&2
+  echo "$GOAL_LEFTOVER" >&2
+  exit 1
+fi
 
 # 見出しだけでは足りない。無制限運用の安全性は 2 つの手順の実体に依存する
 if [[ "$MAX" -eq 0 ]]; then
