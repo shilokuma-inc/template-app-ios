@@ -344,8 +344,11 @@ state ファイルに停止理由を明記したうえで `rm .claude/ralph-loop
 - **全タスクが `[x]`（完了または保留）か `※回答待ち` 付き、かつ作業中の in-flight がゼロ**
   → `<promise>{{PROMISE}}</promise>` を出力。
   **回答待ちの PR と、返答のない decision が残っていてもよい**（ループ側にできることが無いため）。
-  promise を出す前に、state の「最終 PR に載せる内容」を埋める。人間はこれを epic →
-  `{{BASE_BRANCH}}` の PR 本文に貼ってレビューする:
+  promise を出す前に、state の「最終 PR に載せる内容」を埋める。
+  **epic → `{{BASE_BRANCH}}` の最終 PR はループでは作らない**（`gh pr create --base {{BASE_BRANCH}}` は deny で拒否される）。
+  オーケストレーター（askhub-orchestrator）がループの停止と「最終 PR に載せる内容」を見て、`epic-final` 付きで作る。
+  オーケストレーターを使っていない環境では、人間がこの内容を PR 本文に貼って作る。
+  「最終 PR に載せる内容」には次を書く:
   - 回答待ちの PR と ask の内容
   - 判断ログ Issue のうち返答のない decision（既定値のまま確定する旨を添える）
   - 実機確認 Issue の一覧
