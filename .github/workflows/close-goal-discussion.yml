@@ -28,9 +28,11 @@ jobs:
           set -euo pipefail
           # オーケストレーターが書く先頭の 2 行（見出しと目印の番号が一致するもの）だけを受け付ける。
           # 本文の途中に引用された目印で、別の Discussion を閉じないため。ブラウザで編集された本文の CRLF は除く
+          # awk は途中で exit せず最後まで読む（先に抜けると、長い本文で上流の tr が SIGPIPE で落ち、pipefail で止まる）
           number=$(printf '%s\n' "$BODY" | tr -d '\r' | awk '
-            NR == 1 { if ($0 ~ /^ゴール元: Discussion #[0-9]+$/) { sub(/^ゴール元: Discussion #/, ""); heading = $0 } else exit }
-            NR == 2 { if ($0 == "<!-- ask-hub:discussion " heading " -->") print heading; exit }
+            NR == 1 && /^ゴール元: Discussion #[0-9]+$/ { heading = substr($0, length("ゴール元: Discussion #") + 1) }
+            NR == 2 && heading != "" && $0 == "<!-- ask-hub:discussion " heading " -->" { found = heading }
+            END { if (found != "") print found }
           ')
           if [ -z "$number" ]; then
             echo "PR 本文にゴール元の Discussion の目印がありません。何もしません"
