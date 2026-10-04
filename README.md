@@ -11,7 +11,7 @@ SwiftUI のプロジェクト一式と、ビルド・テスト・Archive・TestF
 - iOS 17.0 以上
 - Swift 6（Swift 6 言語モード / Strict Concurrency）
 - SwiftUI / Swift Testing / XCTest（UI テスト）
-- SwiftLint 0.65.1（Build Tool Plugin）
+- SwiftLint 0.65.1（Build Tool Plugin。バイナリだけを配布する [SwiftLintPlugins](https://github.com/SimplyDanny/SwiftLintPlugins) 経由）
 
 ## Status
 
