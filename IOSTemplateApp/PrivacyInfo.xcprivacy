@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- App Store に提出するアプリのプライバシーマニフェスト。機能を足したら、この内容が実態と合っているか見直す -->
+	<!-- トラッキング（ATT の対象）をしないなら false のまま。広告 SDK などでトラッキングするなら true にし、ドメインを列挙する -->
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<!-- 収集するデータ。App Store Connect の「App のプライバシー」と揃える -->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array/>
+	<!-- 理由の申告が必要な API。@AppStorage / UserDefaults はほぼすべてのアプリが使うため、最初から申告しておく -->
+	<!-- ファイルのタイムスタンプ・空き容量・起動時刻などの API を使うときは、ここに理由を足す -->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<!-- CA92.1: アプリ自身だけが読み書きする設定・状態の保存 -->
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
