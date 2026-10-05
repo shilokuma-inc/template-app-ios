@@ -5,11 +5,19 @@
 # 「詰まったときの扱い」が書かれていないと無限ループになるので必ず確認する。
 set -euo pipefail
 
+# Git hook や wrapper から継承した経路変数が別のチェックアウトを指すことがある
+unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE \
+      GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
+
 PROMISE="${1:-}"
 MAX="${2:-0}"
 # "00" が 0 判定をすり抜けたり、"abc" が Stop hook に弾かれる state を書くのを防ぐ
 [[ "$MAX" =~ ^[0-9]+$ ]] || { echo "max_iterations は 0 以上の整数で指定してください（指定: $MAX）" >&2; exit 1; }
 MAX=$((10#$MAX))
+# 制御用 worktree のサブディレクトリから実行しても、worktree の直下に state を置く
+# （Stop hook はループの Claude の作業ディレクトリ＝制御用 worktree の直下を見る）
+ROOT=$(git rev-parse --show-toplevel)
+cd "$ROOT"
 STATE=".claude/ralph-loop.local.md"
 GOAL=".claude/ralph-goal.local.md"
 PLAYBOOK=".claude/ralph-playbook.local.md"
