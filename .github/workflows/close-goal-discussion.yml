@@ -1,0 +1,66 @@
+# epic の最終 PR（epic-final）が develop にマージされたら、ゴール元の Discussion を解決済みで閉じる。
+# Discussion は、オーケストレーターが PR 本文の先頭に入れる目印（<!-- ask-hub:discussion N -->）で特定する。
+name: Close goal Discussion
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [develop]
+
+permissions:
+  contents: read
+  discussions: write
+
+jobs:
+  close:
+    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'epic-final')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Close the goal Discussion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # PR 本文はシェルに直接展開せず、環境変数で渡す
+          BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # オーケストレーターが書く先頭の 2 行（見出しと目印の番号が一致するもの）だけを受け付ける。
+          # 本文の途中に引用された目印で、別の Discussion を閉じないため。ブラウザで編集された本文の CRLF は除く
+          # awk は途中で exit せず最後まで読む（先に抜けると、長い本文で上流の tr が SIGPIPE で落ち、pipefail で止まる）
+          number=$(printf '%s\n' "$BODY" | tr -d '\r' | awk '
+            NR == 1 && /^ゴール元: Discussion #[0-9]+$/ { heading = substr($0, length("ゴール元: Discussion #") + 1) }
+            NR == 2 && heading != "" && $0 == "<!-- ask-hub:discussion " heading " -->" { found = heading }
+            END { if (found != "") print found }
+          ')
+          if [ -z "$number" ]; then
+            echo "PR 本文にゴール元の Discussion の目印がありません。何もしません"
+            exit 0
+          fi
+          owner="${REPOSITORY%/*}"
+          name="${REPOSITORY#*/}"
+          # shellcheck disable=SC2016  # GraphQL の変数（$owner など）なので展開しない
+          discussion=$(gh api graphql \
+            -f query='query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) { discussion(number: $number) { id closed } } }' \
+            -f owner="$owner" -f name="$name" -F number="$number" \
+            --jq '.data.repository.discussion')
+          if [ -z "$discussion" ] || [ "$discussion" = "null" ]; then
+            echo "Discussion #$number が見つかりません。何もしません"
+            exit 0
+          fi
+          if [ "$(jq -r '.closed' <<<"$discussion")" = "true" ]; then
+            echo "Discussion #$number は既に閉じています"
+            exit 0
+          fi
+          id=$(jq -r '.id' <<<"$discussion")
+          # shellcheck disable=SC2016  # GraphQL の変数（$owner など）なので展開しない
+          gh api graphql \
+            -f query='mutation($id: ID!, $body: String!) { addDiscussionComment(input: { discussionId: $id, body: $body }) { comment { url } } }' \
+            -f id="$id" -f body="この Discussion をゴール元とする epic は、#$PR_NUMBER で develop に取り込みました。解決済みとして閉じます。" >/dev/null
+          # shellcheck disable=SC2016  # GraphQL の変数（$owner など）なので展開しない
+          gh api graphql \
+            -f query='mutation($id: ID!) { closeDiscussion(input: { discussionId: $id, reason: RESOLVED }) { discussion { closed } } }' \
+            -f id="$id" >/dev/null
+          echo "Discussion #$number を解決済みで閉じました"

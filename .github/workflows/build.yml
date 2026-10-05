@@ -1,23 +1,45 @@
 name: Build
 
-# assets/** はスクリーンショット置き場でアプリのコードを含まないため除外する。
 on:
   push:
+    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
     branches:
       - '**'
+      # assets/** は PR 用スクリーンショットの置き場でアプリのコードを含まないため除外する
       - '!assets/**'
   pull_request:
+    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
-# 同じブランチへの連続 push では古い実行をキャンセルする
+# 同じブランチへの連続 push では古い実行をキャンセルする。
+# 同じリポジトリの PR の synchronize はジョブを実行しない（push 側で実行済み）ため別グループにし、
+# PR 作成時に走らせた UI テストを取り消さないようにする
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'synchronize' && github.event.pull_request.head.repo.full_name == github.repository && 'noop' || 'run' }}
   cancel-in-progress: true
 
 jobs:
   build:
-    # push で実行済みのブランチの PR は二重に実行しない（Fork からの PR のみ pull_request で実行）
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    # 同じリポジトリのブランチは push で実行するため、PR では作成時など（synchronize 以外）にだけ UI テスト込みで実行する。
+    # Fork からの PR は push で実行されないので、すべての PR イベントで実行する
+    if: >-
+      github.event_name == 'push'
+      || github.event.pull_request.head.repo.full_name != github.repository
+      || github.event.action != 'synchronize'
     uses: ./.github/workflows/_build.yml
+    with:
+      # 作業ブランチへの push では Unit テストだけ実行し、PR と develop / main / release/** では UI テストも実行する
+      ui-tests: >-
+        ${{ github.event_name == 'pull_request'
+        || github.ref == 'refs/heads/develop'
+        || github.ref == 'refs/heads/main'
+        || startsWith(github.ref, 'refs/heads/release/') }}

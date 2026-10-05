@@ -1,0 +1,32 @@
+{
+  "_comment": "制御用 worktree の `.claude/settings.json` にコピーして使う（ralph-setup.sh が配置する）。リポジトリにはコミットしないこと: gh pr create --base develop の deny が通常開発の PR 作成まで塞ぐため。bypassPermissions 下でも deny は常に優先される。テンプレートの deny は消さないこと（ralph-setup.sh が欠けを検査して止める。使っていないブランチの deny が残っていても害は無い）。プロジェクト固有の保護ブランチがあれば、その deny を追加すること。",
+  "_warning": "この deny リストは前方一致のパターンでしかなく、保護ブランチへの push を塞ぎきれない。git push origin HEAD:develop のような書き方や、未知の書式は素通りする。保護ブランチの保護は GitHub 側のブランチ保護で行うこと。ここにあるのは多層防御の一段目にすぎない。",
+  "permissions": {
+    "deny": [
+      "Bash(git push origin develop:*)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin master:*)",
+      "Bash(git push origin release/*)",
+      "Bash(git push -u origin develop:*)",
+      "Bash(git push -u origin main:*)",
+      "Bash(git push -u origin master:*)",
+      "Bash(git push origin HEAD:develop:*)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push origin HEAD:master:*)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git checkout develop:*)",
+      "Bash(git checkout main:*)",
+      "Bash(gh pr create --base develop:*)",
+      "Bash(gh pr create --base main:*)",
+      "Bash(gh pr create --base master:*)",
+      "Bash(gh release:*)",
+      "Bash(gh workflow run:*)",
+      "Bash(gh secret:*)",
+      "Bash(gh repo delete:*)",
+      "Bash(gh api -X DELETE:*)",
+      "Bash(rm -rf /*)",
+      "Bash(sudo:*)"
+    ]
+  }
+}
