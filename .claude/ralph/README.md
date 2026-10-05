@@ -76,6 +76,7 @@ cd ../myapp-ralph-ctl && git push -u origin epic/monetization
 ワークフローが発火し、1タスクごとにビルドが App Store Connect へ積まれる。
 **`epic/[機能名]`**（テーマ単位）に集約し、人間が最後に1本の PR でレビューして取り込む。
 `epic/**` はフィーチャーブランチと同じく Build / Archive が走るので、CI の検証力は保たれる。
+CI の無いリポジトリでは、playbook のローカル検証（`{{VERIFY_COMMANDS}}`）を通したことを state に記録し、それを CI の代わりにする。
 1ループ = 1 epic。epic を分ければ、ループ自体を複数走らせて並列化できる。
 
 **`gh pr checks --watch` を使わない。** 最大10分ブロックしてループが止まる。
@@ -106,6 +107,7 @@ worktree 2枠で PR を常時2本 in-flight に保てる。
   ループ本体として Stop hook に捕まり、ループの指示を受け取ってしまう
 
 **マージ条件は「全 CI が pass」＋「CodeRabbit の未対応指摘なし」＋「未回答の `ask` なし」。**
+CI の無いリポジトリでは「全 CI が pass」の代わりに「PR の最新コミットでローカル検証が通った記録がある」を使う。
 CodeRabbit の指摘はコードレビューとして対応し、各コメントに返信する。
 自分が `ask` を残した PR は**マージせず保留**し、回答が付くまで待つ。
 ただし保留中の PR がスロットを占有すると前に進めなくなるため、
