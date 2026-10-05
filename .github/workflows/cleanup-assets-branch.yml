@@ -25,7 +25,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          branches=$(printf '%s' "$PR_BODY" | grep -oE 'assets/issue-[0-9]+' | sort -u || true)
+          # このリポジトリを指す URL（raw.githubusercontent.com/<repo>/assets/issue-N/... や
+          # github.com/<repo>/blob/assets/issue-N/...）から、ブランチ名全体が規約に一致するものだけを拾う。
+          # 他リポジトリの URL や assets/issue-12-backup のような別ブランチを誤って削除しないため
+          repo_pattern=$(printf '%s' "$REPO" | sed 's/[.]/\\./g')
+          branches=$(printf '%s' "$PR_BODY" \
+            | grep -oE "/${repo_pattern}/((raw|blob|tree)/)?assets/issue-[0-9]+/" \
+            | grep -oE 'assets/issue-[0-9]+' \
+            | sort -u || true)
           if [ -z "$branches" ]; then
             echo "参照している assets ブランチはありません"
             exit 0
