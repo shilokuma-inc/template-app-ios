@@ -19,7 +19,7 @@ on:
         default: false
     secrets:
       EXPORT_OPTIONS:
-        description: ExportOptions.plist の内容（destination はワークフロー側で上書きする）
+        description: ExportOptions.plist の内容（destination と、アップロード時の manageAppVersionAndBuildNumber はワークフロー側で上書きする）
         required: true
       APPLE_API_KEY_BASE64:
         description: App Store Connect API Key（.p8）を base64 エンコードしたもの
@@ -120,12 +120,16 @@ jobs:
             ruby .github/scripts/check-app-store-app.rb
 
       - name: Upload to App Store Connect
+        # ビルド番号は Xcode に採番させる（manageAppVersionAndBuildNumber）。App Store Connect 上の最新ビルド番号を見て
+        # 自動で増やすので、xcconfig の CURRENT_PROJECT_VERSION を手で上げる必要はない。
+        # org 共有の EXPORT_OPTIONS Secret は他リポジトリでも使うため書き換えず、ランナー上のコピーだけを上書きする
         if: ${{ inputs.upload }}
         env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: |
           plutil -replace destination -string upload "$EXPORT_OPTIONS_PATH"
+          plutil -replace manageAppVersionAndBuildNumber -bool YES "$EXPORT_OPTIONS_PATH"
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/build.xcarchive" \
             -exportOptionsPlist "$EXPORT_OPTIONS_PATH" \
