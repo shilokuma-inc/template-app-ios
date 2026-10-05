@@ -18,6 +18,9 @@ concurrency:
 
 jobs:
   upload:
+    # テンプレートリポジトリ自身など、App Store Connect にアプリが無いリポジトリではリポジトリ変数 ENABLE_DELIVERY=false でスキップする。
+    # Archive（main で IPA Export まで確認する）はアプリが無くても通るので止めない
+    if: vars.ENABLE_DELIVERY != 'false'
     uses: ./.github/workflows/_archive.yml
     with:
       upload: true
