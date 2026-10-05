@@ -15,7 +15,7 @@ if [[ -z "$INTEGRATION" ]]; then
   exit 1
 fi
 if [[ "$INTEGRATION" != epic/* ]]; then
-  echo "統合ブランチは epic/[機能名] の形式にしてください（指定: $INTEGRATION）" >&2
+  echo "統合ブランチは epic/[機能名] の形式にしてください（指定: ${INTEGRATION}）" >&2
   exit 1
 fi
 BASE="${2:-develop}"
@@ -201,7 +201,7 @@ fi
 MARKER=$(grep -m1 '^## ' .claude/ralph/CLAUDE.snippet.md 2>/dev/null || true)
 MARKER=${MARKER:-'## ralph-loop による自律開発'}
 if [[ ! -f "$CTL/CLAUDE.md" ]] || ! grep -qF "$MARKER" "$CTL/CLAUDE.md"; then
-  echo "警告: 制御用 worktree の CLAUDE.md に ralph-loop の記載がありません（$INTEGRATION）。" >&2
+  echo "警告: 制御用 worktree の CLAUDE.md に ralph-loop の記載がありません（${INTEGRATION}）。" >&2
   echo "      .claude/ralph/CLAUDE.snippet.md を $INTEGRATION の CLAUDE.md に追記してください" >&2
   echo "      （無いと、新しいセッションがこの仕組みに気づけません）" >&2
 fi
