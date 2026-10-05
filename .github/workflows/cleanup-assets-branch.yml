@@ -9,7 +9,9 @@ on:
 jobs:
   cleanup:
     name: Cleanup
-    if: github.event.pull_request.merged == true
+    # Fork からの PR では GITHUB_TOKEN が読み取り専用になり削除できない。assets/** は書き込み権限のある人しか
+    # push できないので、Fork の PR が参照することも無い。同じリポジトリのブランチからの PR だけを対象にする
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
     permissions:
