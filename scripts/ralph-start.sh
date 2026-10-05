@@ -59,6 +59,25 @@ if [[ "$MAX" -eq 0 ]]; then
   fi
 fi
 
+# 周回は ralph-loop プラグインの Stop hook が回す。プラグインが無いと 1 周目で黙って終わるので、state を作る前に止める
+RALPH_PLUGIN="ralph-loop@claude-plugins-official"
+command -v jq >/dev/null 2>&1 || { echo "jq が見つかりません（brew install jq で入れてください）" >&2; exit 1; }
+ralph_plugin_enabled() {
+  local settings
+  # Claude Code と同じく、優先度の高い設定（ローカル → プロジェクト → ユーザー）から見て、
+  # このプラグインの値を最初に持つファイルで決める（上位の false を下位の true で覆さない）
+  for settings in ".claude/settings.local.json" ".claude/settings.json" "$HOME/.claude/settings.json"; do
+    [[ -f "$settings" ]] || continue
+    if jq -e --arg plugin "$RALPH_PLUGIN" '.enabledPlugins | has($plugin)' "$settings" >/dev/null 2>&1; then
+      jq -e --arg plugin "$RALPH_PLUGIN" '.enabledPlugins[$plugin] == true' "$settings" >/dev/null 2>&1
+      return
+    fi
+  done
+  return 1
+}
+ralph_plugin_enabled \
+  || { echo "Claude Code の ${RALPH_PLUGIN} が有効になっていません（claude plugin install ${RALPH_PLUGIN} で入れてください）" >&2; exit 1; }
+
 cat > "$STATE" <<STATE_EOF
 ---
 active: true
