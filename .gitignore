@@ -101,3 +101,8 @@ private_keys/
 
 # macOS
 .DS_Store
+
+# カバレッジ計測のファイル。カバレッジ付きのビルドを実行した場所に書き出される
+# （ralph-loop の制御用 worktree に残ると、起動スクリプトが worktree を片付けられない）
+*.profraw
+*.profdata
