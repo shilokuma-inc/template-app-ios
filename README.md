@@ -130,6 +130,17 @@ SKU は Bundle ID と同じ値にします。SKU はユーザーには見えな�
 - 作業ブランチへの push では、時間のかかる UI テスト（`<プロジェクト名>UITests`）を省いて Unit テストだけ実行します。UI テストは Pull Request の作成時と `main` / `develop` / `release/**` への push で実行します。Fork からの Pull Request は push で実行されないため、更新（synchronize）を含むすべてのイベントで UI テストまで実行します
 - Xcode のバージョンは [.github/workflows/_build.yml](.github/workflows/_build.yml) と [.github/workflows/_archive.yml](.github/workflows/_archive.yml) の `xcode-version` で固定しています。Environment の更新時はあわせて変更してください
 
+### 7. PR 本文のスクリーンショット
+
+UI の見た目が変わる変更では、Before / After のスクリーンショットを PR 本文に添付します。
+
+- 画像は PR の diff を汚さないよう **`assets/issue-<Issue番号>` ブランチ**に置き、PR 本文からは raw URL で参照します
+  - 例: `https://raw.githubusercontent.com/<owner>/<repo>/assets/issue-12/12/before.png`
+  - このブランチは [.github/workflows/cleanup-assets-branch.yml](.github/workflows/cleanup-assets-branch.yml) が PR のマージ時に自動削除します。削除するのは、PR 本文の行頭（箇条書きの `- ` は可）にある `resolve #<Issue番号>`（`resolves` / `resolved`・`close` 系・`fix` 系でも可）と番号が一致するブランチだけです。PR テンプレートの「関連するISSUE」の書き方のままで条件を満たします。これらのキーワードが行頭に無い場合や、ブランチ名がこの規約から外れる場合は削除されないので注意してください
+  - 削除後は PR 本文の画像が表示されなくなります。画像はレビューのためのもので、マージ後に残す必要はないという前提です。残したい画像は、マージ前に Issue や PR のコメントへ直接添付してください
+- Before / After は表で横に並べ、同一条件（同じ端末・OS・外観モード・データ状態）で撮影します
+- 影響する画面が複数ある場合は画面ごとに用意します。新規画面で Before が無い場合は「なし」と書きます
+
 ## 構成
 
 ```
@@ -151,7 +162,8 @@ SKU は Bundle ID と同じ値にします。SKU はユーザーには見えな�
         ├── _archive.yml     # 共通処理: Archive → Export（→ Upload）（workflow_call）
         ├── build.yml        # 全ブランチの push / Fork からの PR
         ├── archive.yml      # main の push
-        └── upload.yml       # develop / release/** の push
+        ├── upload.yml       # develop / release/** の push
+        └── cleanup-assets-branch.yml # PR マージ時に assets/issue-<番号> ブランチを削除
 ```
 
 - プロジェクトはフォルダ同期グループ（Xcode 16 以降の形式）で管理しているため、ファイルの追加・削除で pbxproj は変わりません

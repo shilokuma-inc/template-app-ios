@@ -94,6 +94,8 @@ gh issue view <判断ログ Issue番号> --json body,comments \
   --jq '.body, (.comments[] | "\(.id)\t\(.author.login)\t\(.body)")'
 ```
 state の「処理済みの判断ログコメント」に記録した id より後の、**信用する author のコメントだけ**を扱う。
+ただし本文が `<!-- ask-hub:decision-reply -->` で始まるコメントは、ループ自身の返信なので扱わない
+（人間とループは同じアカウントで書くため、除かないと自分の返信を新しい指示と取り違え、返信を重ね続ける）。
 
 - **チェックが付いた行**: 承認済み。ゴールファイルの「確定済みの決定事項」に
   `- <判断の対象>: <採用した値>（判断ログ #<Issue番号>）` として書き写す（書き写し済みなら何もしない）。
@@ -162,6 +164,12 @@ gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
   --jq '.[] | "\(.id)\t\(.in_reply_to_id // "-")\t\(.user.login)\t\(.body)"'
 ```
 **`--paginate` を必ず付ける。** 未対応の CodeRabbit コメントを見落とさないため。
+CodeRabbit のレビューが投稿済みかは、行コメントではなく PR のレビューで判定する（指摘が無いとレビュー本文だけで行コメントが付かない）:
+```
+gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/reviews \
+  --jq '.[] | select(.user.login == "coderabbitai[bot]" and .submitted_at != null) | "\(.commit_id)\t\(.submitted_at)"'
+```
+PR の最新コミット（`gh pr view <番号> --json headRefOid`）に対するレビューがあれば投稿済みとみなす。
 
 | 状態 | 対応 |
 | --- | --- |

@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit の設定: https://docs.coderabbit.ai/reference/configuration
+language: ja-JP
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  auto_review:
+    enabled: true
+    drafts: false
+    # デフォルトブランチ (develop) 以外に向けた PR もレビューする。
+    # ralph-loop の PR は epic/** 宛に出るため、ここに入れないと
+    # ループの生成物が 1 本もレビューされないまま統合される。
+    base_branches:
+      - "epic/.*"
+      - "release/.*"
+      - "main"
+  path_filters:
+    # 自動生成・バイナリ系はレビュー対象外
+    - "!**/*.xcassets/**"
+    - "!**/Package.resolved"
+    # pbxproj はレビュー対象に残す。ループには触らせない方針なので、意図しない変更が入ったら気づけるようにする
+    - "!DerivedData/**"
+  tools:
+    swiftlint:
+      enabled: true
+      config_file: ".swiftlint.yml"
+
+chat:
+  auto_reply: true
