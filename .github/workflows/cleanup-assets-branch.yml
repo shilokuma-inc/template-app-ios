@@ -40,7 +40,19 @@ jobs:
             exit 0
           fi
 
+          # 削除するのは、この PR が解決する Issue（本文の「resolve #N」）のブランチだけにする。
+          # 進行中の別の PR の画像を本文で参照していても、そのブランチは消さない。
+          # epic/** 宛ての PR では GitHub の Issue の紐付け（closingIssuesReferences）が付かないため、本文から読む
+          issues=$(printf '%s' "$PR_BODY" \
+            | grep -oiE '(resolve[sd]?|close[sd]?|fix(e[sd])?) +#[0-9]+' \
+            | grep -oE '[0-9]+' \
+            | sort -u || true)
+
           for branch in $branches; do
+            if ! printf '%s\n' "$issues" | grep -qx -- "${branch#assets/issue-}"; then
+              echo "この PR が解決する Issue のブランチではないためスキップ: $branch"
+              continue
+            fi
             if gh api "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
               gh api -X DELETE "repos/$REPO/git/refs/heads/$branch"
               echo "削除しました: $branch"
