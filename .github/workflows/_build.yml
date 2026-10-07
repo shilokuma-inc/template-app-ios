@@ -62,7 +62,8 @@ jobs:
           "$swiftlint" lint --strict --reporter github-actions-logging
 
       - name: Build and test
-        # UI テストは共有ランナー上で起動待ちに失敗することがあるため、失敗したテストだけ最大 2 回まで再試行する
+        # UI テストは共有ランナー上で起動待ちに失敗することがあるため、失敗したテストだけ 1 回再試行する
+        # （-test-iterations は初回を含む実行回数の上限）
         env:
           UI_TESTS: ${{ inputs.ui-tests }}
         run: |
