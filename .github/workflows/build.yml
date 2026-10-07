@@ -24,7 +24,7 @@ permissions:
 # 同じリポジトリの PR の synchronize はジョブを実行しない（push 側で実行済み）ため別グループにし、
 # PR 作成時に走らせた UI テストを取り消さないようにする（epic/** からの最終 PR の synchronize は実行するので除く）
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'synchronize' && github.event.pull_request.head.repo.full_name == github.repository && !startsWith(github.head_ref, 'epic/') && 'noop' || 'run' }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'synchronize' && github.event.pull_request.head.repo.full_name == github.repository && !(startsWith(github.head_ref, 'epic/') && !startsWith(github.base_ref, 'epic/')) && 'noop' || 'run' }}
   cancel-in-progress: true
 
 jobs:
@@ -32,13 +32,13 @@ jobs:
     # 同じリポジトリのブランチは push で実行するため、PR では作成時など（synchronize 以外）にだけ UI テスト込みで実行する。
     # ただし epic/** 宛ての PR（ralph-loop の子 PR）では実行しない。ループはローカルで検証済みで、push の Unit テストで足りる。
     # UI テストは epic → develop の最終 PR で実行する（macOS の同時実行枠を空けて、子 PR の待ちを減らすため）。
-    # その代わり epic/** からの最終 PR は、更新（synchronize）でも UI テスト込みで実行する（epic への push は Unit テストだけのため）。
+    # その代わり epic/** から epic/** 以外への PR（最終 PR）は、更新（synchronize）でも UI テスト込みで実行する（epic への push は Unit テストだけのため）。
     # Fork からの PR は push で実行されないので、すべての PR イベントで実行する
     if: >-
       github.event_name == 'push'
       || github.event.pull_request.head.repo.full_name != github.repository
       || (github.event.action != 'synchronize' && !startsWith(github.base_ref, 'epic/'))
-      || startsWith(github.head_ref, 'epic/')
+      || (startsWith(github.head_ref, 'epic/') && !startsWith(github.base_ref, 'epic/'))
     uses: ./.github/workflows/_build.yml
     with:
       # 作業ブランチへの push では Unit テストだけ実行し、PR と develop / main / release/** では UI テストも実行する
