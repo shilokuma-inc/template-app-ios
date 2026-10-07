@@ -43,7 +43,7 @@ jobs:
           xcode-version: ${{ inputs.xcode-version }}
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Allow SwiftLint build tool plugin
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
@@ -100,7 +100,7 @@ jobs:
             -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
 
       - name: Upload IPA to GitHub
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PROJECT_NAME }}.ipa
           path: ${{ runner.temp }}/export/*.ipa
