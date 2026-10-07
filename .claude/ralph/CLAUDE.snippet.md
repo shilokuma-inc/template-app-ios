@@ -24,3 +24,11 @@ ralph-loop の存在と手順に到達できる。ralph-setup.sh はこの記載
 ```
 <リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N
 ```
+
+担当 PC のオーケストレーターに任せず手で回すときは、Discussion に `manual-loop` を付けたうえで末尾に「手動で回して」を付ける。
+始めるときに `ready-for-loop` を外し、loop-status を書き手 `manual` で書いて 10 分ごとに `checkedAt` を書き直し、
+最終 PR は `epic-final` を付けて自分で作る（手順は `.claude/ralph/README.md` の「手で回す（manual-loop）」）:
+
+```
+<リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N。手動で回して
+```

@@ -166,6 +166,60 @@ promise は完全一致でしか成立せず「詰まった」を表現できな
 
 セットアップ（Mac ごとの手順・設定ファイル）は ask-hub-apple の `docs/orchestrator.md` を参照。
 
+### 手で回す（manual-loop）
+
+担当 PC のオーケストレーターに任せず、別の PC などから手でループを回すときは、ゴール元の Discussion に
+ラベル `manual-loop` を付ける（ask-hub-apple の Discussion #273）。AskHub の回答画面で、最後の質問を
+「投稿したら、回答を確定してループを始める」の回し方「手動で回す」で投稿すると付く。GitHub で手で付けてもよい。
+**信用する author の Discussion に付いたときだけ効く。**
+
+`manual-loop` の付いた Discussion について、オーケストレーターは次のように動く:
+
+- 全問回答でも `ready-for-loop` を付けない（`needs-answer` だけ外す）。`ready-for-loop` が付いていても起動しない
+- Discussion が open なあいだ（最終 PR のマージで閉じられるまで）、**同じリポジトリのほかの Discussion も自動で起動しない**（1 リポジトリにつきループは 1 つ）
+- loop-status は、手で回すループが書く（下記）。オーケストレーターは、書き手が手動で `checkedAt` が 30 分以内のあいだは書かない
+- 最終 PR のコンフリクトの解消は今までどおり行う（`epic-final` の PR を見ているだけなので）
+
+依頼の形式（CLAUDE.md の依頼の形式の末尾に「手動で回して」を付ける）:
+
+```
+<リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N。手動で回して
+```
+
+AskHub の回答画面で「手動で回す」を選んで投稿すると、この形式の指示（リポジトリと Discussion の番号を埋めたもの）をコピーできる。
+
+手順は通常の起動（`ralph-setup.sh` → playbook を埋める → `ralph-start.sh`）と同じで、次を足す。
+ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書き方は今のプロトコルのまま（AskHub の受信箱でそのまま扱える）。
+
+1. **始めるときに `ready-for-loop` を外す**（付いていれば）。Discussion のラベルは REST で外せないので GraphQL を使う:
+   ```bash
+   owner=<owner> repo=<repo> number=<ゴール元の Discussion の番号>
+   ids=$(gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
+     discussion(number:$n){ id } label(name:"ready-for-loop"){ id } } }' \
+     -f o="$owner" -f r="$repo" -F n="$number" --jq '.data.repository | "\(.discussion.id) \(.label.id)"')
+   read -r discussion label <<<"$ids"
+   gh api graphql -f query='mutation($d:ID!,$l:ID!){ removeLabelsFromLabelable(input:{labelableId:$d,labelIds:[$l]}){ clientMutationId } }' \
+     -f d="$discussion" -f l="$label"
+   ```
+2. **loop-status を書き手 `manual` で書く**。リポジトリの状態用の Issue（ラベル `loop-status`、タイトル `【AskHub】ループの状態`。
+   信用する author が作った open なもののうち最も新しく更新されたもの。無ければ同じタイトル・ラベルで作る）の本文の先頭に、目印を置く:
+   ```html
+   <!-- ask-hub:loop-status {"checkedAt":"2026-10-08T00:10:00Z","discussion":12,"epic":"epic/<機能名>","progress":{"completed":3,"total":8},"state":"running","writer":"manual"} -->
+   ```
+   形式は ask-hub-apple の `docs/protocol.md` の「ループの状態」（時刻は秒までの ISO 8601・UTC。ローカルパスや PC 名は書かない）。
+   状態・epic・進捗が変わったら書き換え、変わらなくても **10 分ごとに `checkedAt` を書き直す**（playbook の STEP D で、
+   前回から 10 分たっていれば書き直す、と書いておく）。ループが止まって 30 分たつと、オーケストレーターが書き直す
+3. **最終 PR はループ（または人間）が `epic-final` を付けて作る**。オーケストレーターは手で回す制御用 worktree を見られないので作らない。
+   本文は state の「最終 PR に載せる内容」を使う:
+   ```bash
+   epic=epic/<機能名> body=final-pr-body.md   # epic のブランチと、「最終 PR に載せる内容」を書いたファイル
+   gh pr create --base develop --head "$epic" --title '【FEAT】…' --assignee @me --label epic-final --body-file "$body"
+   ```
+   制御用 worktree の `.claude/settings.json` の deny は `gh pr create --base develop` を塞ぐ（通常のループが最終 PR を作らないため）。
+   **手で回すときは、制御用 worktree の外（メインの checkout や別のセッション）から作るか、人間が作る。**
+   deny が塞ぐのは制御用 worktree の settings.json だけなので、ほかの場所では通常どおり作れる。
+   マージ後は今までどおり、ワークフローがゴール元の Discussion を閉じ、オーケストレーターが判断ログを閉じる
+
 ## ループに向かないタスク
 
 判定基準は**自動検証器があるか**。lint とビルドで正しさを担保できないものは向かない。
