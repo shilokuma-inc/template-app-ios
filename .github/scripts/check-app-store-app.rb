@@ -53,7 +53,10 @@ def find_app(bundle_id:, token:)
   uri.query = URI.encode_www_form('filter[bundleId]' => bundle_id, 'fields[apps]' => 'name,bundleId,sku')
   request = Net::HTTP::Get.new(uri)
   request['Authorization'] = "Bearer #{token}"
-  response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) { |http| http.request(request) }
+  # API が応答しないときにジョブのタイムアウト（45 分）まで待たないよう、接続と読み取りに上限を設ける
+  response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
+    http.request(request)
+  end
 
   unless response.is_a?(Net::HTTPSuccess)
     abort "::error::App Store Connect API の呼び出しに失敗しました（HTTP #{response.code}）\n#{response.body}"
