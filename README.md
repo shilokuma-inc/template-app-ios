@@ -136,7 +136,7 @@ UI の見た目が変わる変更では、Before / After のスクリーンシ�
 
 - 画像は PR の diff を汚さないよう **`assets/issue-<Issue番号>` ブランチ**に置き、PR 本文からは raw URL で参照します
   - 例: `https://raw.githubusercontent.com/<owner>/<repo>/assets/issue-12/12/before.png`
-  - このブランチは [.github/workflows/cleanup-assets-branch.yml](.github/workflows/cleanup-assets-branch.yml) が PR のマージ時に自動削除します。削除するのは、PR 本文の `resolve #<Issue番号>`（`resolves` / `resolved`・`close` 系・`fix` 系でも可）と番号が一致するブランチだけです。これらのキーワードが無い場合や、ブランチ名がこの規約から外れる場合は削除されないので注意してください
+  - このブランチは [.github/workflows/cleanup-assets-branch.yml](.github/workflows/cleanup-assets-branch.yml) が PR のマージ時に自動削除します。削除するのは、PR 本文の行頭（箇条書きの `- ` は可）にある `resolve #<Issue番号>`（`resolves` / `resolved`・`close` 系・`fix` 系でも可）と番号が一致するブランチだけです。PR テンプレートの「関連するISSUE」の書き方のままで条件を満たします。これらのキーワードが行頭に無い場合や、ブランチ名がこの規約から外れる場合は削除されないので注意してください
   - 削除後は PR 本文の画像が表示されなくなります。画像はレビューのためのもので、マージ後に残す必要はないという前提です。残したい画像は、マージ前に Issue や PR のコメントへ直接添付してください
 - Before / After は表で横に並べ、同一条件（同じ端末・OS・外観モード・データ状態）で撮影します
 - 影響する画面が複数ある場合は画面ごとに用意します。新規画面で Before が無い場合は「なし」と書きます

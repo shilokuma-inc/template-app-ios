@@ -40,11 +40,14 @@ jobs:
             exit 0
           fi
 
-          # 削除するのは、この PR が解決する Issue（本文の「resolve #N」）のブランチだけにする。
+          # 削除するのは、この PR が解決する Issue（本文の行頭の「resolve #N」）のブランチだけにする。
+          # PR テンプレートの「- resolve #N」の形に合わせて行頭（箇条書きの記号は可）だけを見る。
+          # 文中の「does not resolve #12」や「unresolved #12」から番号を拾い、別の PR のブランチを消さないため。
           # 進行中の別の PR の画像を本文で参照していても、そのブランチは消さない。
           # epic/** 宛ての PR では GitHub の Issue の紐付け（closingIssuesReferences）が付かないため、本文から読む
           issues=$(printf '%s' "$PR_BODY" \
-            | grep -oiE '(resolve[sd]?|close[sd]?|fix(e[sd])?) +#[0-9]+' \
+            | grep -oiE '^[[:space:]]*([-*+][[:space:]]+)?(resolve[sd]?|close[sd]?|fix(e[sd])?)[[:space:]]+#[0-9]+' \
+            | grep -oE '#[0-9]+' \
             | grep -oE '[0-9]+' \
             | sort -u || true)
 
