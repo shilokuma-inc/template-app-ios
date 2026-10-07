@@ -164,6 +164,12 @@ gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/comments \
   --jq '.[] | "\(.id)\t\(.in_reply_to_id // "-")\t\(.user.login)\t\(.body)"'
 ```
 **`--paginate` を必ず付ける。** 未対応の CodeRabbit コメントを見落とさないため。
+CodeRabbit のレビューが投稿済みかは、行コメントではなく PR のレビューで判定する（指摘が無いとレビュー本文だけで行コメントが付かない）:
+```
+gh api --paginate repos/{{OWNER_ORG}}/{{REPO}}/pulls/<番号>/reviews \
+  --jq '.[] | select(.user.login == "coderabbitai[bot]" and .submitted_at != null) | "\(.commit_id)\t\(.submitted_at)"'
+```
+PR の最新コミット（`gh pr view <番号> --json headRefOid`）に対するレビューがあれば投稿済みとみなす。
 
 | 状態 | 対応 |
 | --- | --- |
