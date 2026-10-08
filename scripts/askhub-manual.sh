@@ -250,6 +250,13 @@ effective_permission_mode() {
   # 終わる直前に書かれた init も拾う
   [[ -n "$found" ]] || found=$(grep -m 1 '"subtype":"init"' "$dir/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
   kill -TERM -- "-$pid" 2>/dev/null || true
+  # TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する
+  local grace=0
+  while kill -0 -- "-$pid" 2>/dev/null && (( grace < 20 )); do
+    sleep 0.1
+    grace=$(( grace + 1 ))
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   rm -rf "$dir"
   printf '%s' "$found"
