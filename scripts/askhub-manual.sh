@@ -7,10 +7,11 @@
 #          scripts/askhub-manual.sh final
 #
 # 流れ（担当者の Claude Code が、AskHub からコピーした指示を受けて行う）:
-#   1. start:  担当者が自分か確かめ、ready-for-loop を外し、ralph-setup.sh で制御用 worktree とスロットを作り、epic を origin に push する。
+#   1. start:  担当者が自分か確かめ、ralph-setup.sh で制御用 worktree とスロットを作り、epic を origin に push してから ready-for-loop を外す。
 #              信用する author（このリポジトリに書き込み権限を持つ人）を表示し、状態用の Issue を「開始待ち」で書く
 #   2. （Claude が playbook の {{...}} を埋め、STEP A に沿って goal を作る）
 #   3. launch: 完了語を記録し、ralph-start.sh で state を作り、制御用 worktree で claude -p のループをバックグラウンドで起動する
+#              （bypassPermissions で起動する。MDM などで禁止された Mac では auto モード。どちらも使えなければ起動しない）
 #   4. status: 状態用の Issue を書き手 manual・回している人つきで書き直す（playbook の STEP D から呼ぶ。10 分に 1 回まで）
 #   5. resume: 回答が付いた後などに、記録した完了語でループを起動し直す
 #   6. final:  ループが終わったら、ゴール元の目印つきの最終 PR（epic-final）を作る。制御用 worktree の外から呼ぶ
@@ -225,13 +226,96 @@ BODY
 
 # ---- ループの起動 --------------------------------------------------------------------------
 
+# claude を指定の権限モードで起動したとき、実際に効く権限モード（起動時の init イベントから読む）。
+# MDM や組織の管理設定で bypassPermissions が禁止されていると、エラーにならずに default で起動し、
+# 確認の要る操作（ファイルの編集・コマンド）がすべて黙って拒否されるので、起動の前に確かめる。
+# 本番のループと同じプロジェクト設定（制御用 worktree の .claude/settings.json など）で判定するよう、制御用 worktree で起動する。
+# ループの Stop hook に捕まらないよう、hook を止めて起動し、ループの state ファイルをよけた後に呼ぶ（launch_loop）。
+# init の行が出たら（または ASKHUB_PROBE_TIMEOUT 秒（既定 60）たったら）、子プロセスごと止める
+# （固まっても launch を止めない。claude の子プロセスが出力を開いたまま残っても待たないよう、新しいプロセスグループで起動する）。読めなければ空
+effective_permission_mode() {
+  local mode="$1" ticks=0 found="" limit=$(( ${ASKHUB_PROBE_TIMEOUT:-60} * 10 ))
+  # 確認の claude には Ctrl-C の SIGINT が届かないので、途中で中断（Ctrl-C・TERM）されたときも止めて、一時ディレクトリを消す。
+  # trap からは関数の local 変数が見えないので、PROBE_DIR・PROBE_PID に入れる（コマンド置換の中で呼ぶので、呼び出し元の変数と trap は変えない）
+  PROBE_DIR="" PROBE_PID=""
+  trap 'stop_probe "${PROBE_PID:-}"; [[ -z "${PROBE_DIR:-}" ]] || rm -rf "$PROBE_DIR"' EXIT
+  trap 'exit 130' INT TERM
+  PROBE_DIR=$(mktemp -d)
+  (cd "$CTL" && exec perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" \
+      --settings '{"disableAllHooks":true}' --no-session-persistence --output-format stream-json --verbose --max-turns 1 \
+      "OK とだけ答えてください" </dev/null >"$PROBE_DIR/out" 2>/dev/null) &
+  PROBE_PID=$!
+  while (( ticks < limit )); do
+    found=$(grep -m 1 '"subtype":"init"' "$PROBE_DIR/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+    [[ -n "$found" ]] && break
+    kill -0 "$PROBE_PID" 2>/dev/null || break
+    sleep 0.1
+    ticks=$(( ticks + 1 ))
+  done
+  # 終わる直前に書かれた init も拾う
+  [[ -n "$found" ]] || found=$(grep -m 1 '"subtype":"init"' "$PROBE_DIR/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+  stop_probe "$PROBE_PID"
+  trap - EXIT INT TERM
+  rm -rf "$PROBE_DIR"
+  printf '%s' "$found"
+}
+
+# 確認の claude を、子プロセスごと止める。
+# TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する。
+# プロセスグループを作る前（setpgrp の前）に中断されたときはグループがないので、PID にも送る
+stop_probe() {
+  local pid="$1" grace=0
+  [[ -n "$pid" ]] || return 0
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  kill -TERM "$pid" 2>/dev/null || true
+  while kill -0 -- "-$pid" 2>/dev/null && (( grace < 20 )); do
+    sleep 0.1
+    grace=$(( grace + 1 ))
+  done
+  kill -KILL -- "-$pid" 2>/dev/null || true
+  kill -KILL "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+}
+
+# ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない。
+# 確認が中断されたとき（コマンド置換が失敗したとき）は、次の確認に進まずに失敗を返す
+loop_permission_mode() {
+  local mode
+  mode=$(effective_permission_mode bypassPermissions) || return 1
+  if [[ "$mode" == bypassPermissions ]]; then
+    echo bypassPermissions
+    return 0
+  fi
+  echo "この Mac では bypassPermissions が使えないため（起動時の権限モード: ${mode:-不明}）、auto モードで起動します" >&2
+  mode=$(effective_permission_mode auto) || return 1
+  if [[ "$mode" != auto ]]; then
+    fail "この Mac では bypassPermissions も auto モードも使えません（起動時の権限モード: ${mode:-不明}）。確認の要る操作がすべて拒否されてループが進まないため、起動しません"
+  fi
+  echo auto
+}
+
 launch_loop() {
   local promise="$1"
   command -v "${ASKHUB_CLAUDE:-claude}" >/dev/null 2>&1 || fail "claude が見つかりません"
   loop_alive && fail "ループは既に動いています（PID $(cat "$PID_FILE")）。止めるには scripts/ralph-stop.sh"
-  [[ -f "$LOOP_STATE" ]] && rm -f "$LOOP_STATE"
+  # 権限モードは、ループの state ファイルをよけてから確かめる（確認の起動がループの Stop hook に捕まらないように）。
+  # 確かめられない・新しい state を作れない・途中で中断されたときは元に戻して止める（止まったループの状態を status が正しく出せるように）
+  local saved_state="" permission_mode
+  if [[ -f "$LOOP_STATE" ]]; then
+    saved_state="$LOOP_STATE.probe"
+    mv "$LOOP_STATE" "$saved_state"
+    # 確かめられなかったとき・途中で中断されたときは、よけた state を元に戻す
+    trap "mv $(printf '%q' "$saved_state") $(printf '%q' "$LOOP_STATE") 2>/dev/null || true" EXIT
+    trap 'exit 130' INT TERM
+  fi
+  permission_mode=$(loop_permission_mode) || exit 1
   (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
   [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
+  # 新しい state を作り終えてから、よけた state を消す（ralph-start.sh が失敗したときも元に戻せるように）
+  if [[ -n "$saved_state" ]]; then
+    trap - EXIT INT TERM
+    rm -f "$saved_state"
+  fi
   mkdir -p "$LOG_DIR"
   local log initial
   log="$LOG_DIR/$STEM-loop-$(date +%Y%m%d-%H%M%S).log"
@@ -240,11 +324,12 @@ launch_loop() {
   (
     cd "$CTL"
     nohup "${ASKHUB_CLAUDE:-claude}" -p --add-dir "${CTL%-ctl}-a" --add-dir "${CTL%-ctl}-b" \
-      --permission-mode bypassPermissions "$initial" </dev/null >>"$log" 2>&1 &
+      --permission-mode "$permission_mode" "$initial" </dev/null >>"$log" 2>&1 &
     echo $! > "$PID_FILE"
   )
   state_set log "$log"
-  echo "ループを起動しました（PID $(cat "$PID_FILE")、ログ: $log）"
+  state_set permission_mode "$permission_mode"
+  echo "ループを起動しました（PID $(cat "$PID_FILE")、権限モード: $permission_mode、ログ: $log）"
   echo "進み具合を見るには: tail -f \"$log\""
   write_status false true
 }
@@ -293,10 +378,11 @@ case "$COMMAND" in
     if [[ -n "$PREVIOUS" && "$PREVIOUS" != "$DISCUSSION" && -f "$LOOP_STATE" ]]; then
       fail "制御用 worktree で Discussion #$PREVIOUS の手動ループが途中です。終わってから始めてください"
     fi
-    remove_ready_label "$DISCUSSION_ID"
     (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" "$BASE_BRANCH" >/dev/null)
     # 子 PR の base になるので、epic を origin に置いておく（ralph-setup.sh は push しない）
     git -C "$MAIN" push --quiet -u origin "$EPIC" || fail "$EPIC を origin に push できません"
+    # 準備と push が済んでから ready-for-loop を外す（途中で失敗したとき、ラベルだけ外れた状態を残さない）
+    remove_ready_label "$DISCUSSION_ID"
     rm -f "$STATE_FILE"
     state_set repository "$REPOSITORY"
     state_set discussion "$DISCUSSION"

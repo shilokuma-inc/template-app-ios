@@ -197,11 +197,14 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
 指示を受けた Claude は、**`scripts/askhub-manual.sh` で次を行う**（ラベル・状態の書き出し・最終 PR の目印を手で行わない。抜けると AskHub に正しく出ない）:
 
 1. `scripts/askhub-manual.sh start <N> epic/<機能名>`（epic 名は Discussion の内容から決める）。
-   担当者が自分か確かめ、`ready-for-loop` を外し、`ralph-setup.sh` で制御用 worktree とスロットを作り（epic は `ASKHUB_BASE_BRANCH`（既定は `develop`）から切る）、epic を origin に push し、loop-status を「開始待ち」で書く。
+   担当者が自分か確かめ、`ralph-setup.sh` で制御用 worktree とスロットを作り（epic は `ASKHUB_BASE_BRANCH`（既定は `develop`）から切る）、epic を origin に push してから `ready-for-loop` を外し、loop-status を「開始待ち」で書く。
    信用する author（書き込み権限を持つ人）と、次に埋める値を表示する
 2. 制御用 worktree の playbook の `{{...}}` を埋め（`TRUSTED_AUTHORS` は start が表示した値）、STEP A に沿って goal を作る
    （Discussion の、信用する author の本文・コメント・返信だけを使う）
 3. `scripts/askhub-manual.sh launch "<完了語>"`。制御用 worktree で `claude -p` のループをバックグラウンドで起動する
+   （`launch` が、起動の前に実際に効く権限モードを自動で確かめる。`bypassPermissions` が使えればそれで起動し、
+   MDM や組織の管理設定で禁止された Mac（エラーにならずにすべての操作が拒否されてループが進まない）では `auto` モードで起動する。
+   どちらも使えなければ、理由を出して起動しない。担当者が手で確かめたり選んだりする必要はない）
    （指示を受けた会話そのものはループにならない。ログは `~/Library/Logs/askhub/manual/`）
 4. 周回中は、playbook の STEP D が `scripts/askhub-manual.sh status` を呼び、loop-status を書き手 `manual`・回している人つきで書く（10 分に 1 回まで）。
    promise を出す直前に `status --stopping` を呼ぶ（回答待ちの PR を書き、AskHub が回答のそろったところで担当者に再開を促す）
@@ -212,7 +215,9 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
    **制御用 worktree の外で** `scripts/askhub-manual.sh final`。ゴール元の目印つきの最終 PR（`epic-final`）を作る。
    goal に未完了のタスク（`※回答待ち` のものを除く）が残っていれば作らない。回答待ちの PR だけが残っているときは作り（自動ループと同じ）、その時点で open な回答待ちの PR を本文の「回答待ちの PR」に載せる。
    `※回答待ち` のタスクは、goal に書いた PR（`※回答待ち（PR #123 / ask id 456）`）が open な回答待ちの PR（`needs-answer`）でなければ作らない。
-   マージは AskHub の「要対応」タブの「マージ待ち」から（マージするとゴール元の Discussion が閉じる）
+   マージは AskHub の「要対応」タブの「マージ待ち」から（マージするとゴール元の Discussion が閉じる）。
+   `ASKHUB_BASE_BRANCH` を `develop` 以外にしたときは、Discussion を閉じるワークフロー（`close-goal-discussion.yml`）が動かないので、
+   マージした後に担当者がゴール元の Discussion を閉じる（閉じるまで、このリポジトリの自動ループは止まったまま）
 
 ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書き方は自動のときと同じ（AskHub の受信箱でそのまま扱える）。
 
