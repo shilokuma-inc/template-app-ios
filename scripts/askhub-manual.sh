@@ -341,7 +341,8 @@ NEXT
     loop_alive && fail "ループがまだ動いています。終わってから最終 PR を作ってください"
     DISCUSSION=$(state_get discussion)
     EPIC=$(state_get epic)
-    EXISTING=$(gh pr list -R "$REPOSITORY" --head "$EPIC" --base "$BASE_BRANCH" --state all --json url --jq '.[0].url // ""')
+    # マージせずに閉じた PR は既存として扱わない（作り直せるように）。open かマージ済みがあれば作らない
+    EXISTING=$(gh pr list -R "$REPOSITORY" --head "$EPIC" --base "$BASE_BRANCH" --state all --json url,state --jq '[.[] | select(.state != "CLOSED")][0].url // ""')
     if [[ -n "$EXISTING" ]]; then
       echo "最終 PR は既にあります: $EXISTING"
       exit 0
