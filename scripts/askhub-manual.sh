@@ -355,7 +355,7 @@ NEXT
     DISCUSSION=$(state_get discussion)
     EPIC=$(state_get epic)
     # status と同じ判定で状態を求め、goal のタスクが終わっているときだけ進める
-    # 回答待ちの PR が残っていても作る（自動ループと同じ。ループが「最終 PR に載せる内容」に回答待ちの PR を書き、本文に載る）
+    # 回答待ちの PR が残っていても作る（自動ループと同じ。回答待ちの PR は下で本文に載せる）
     WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --json number --jq '.[].number' | sort -n | paste -sd, -)
     FINAL_STATE=$(compute_state true "$WAITING")
     case "$FINAL_STATE" in
@@ -372,6 +372,10 @@ NEXT
     SUMMARY=$(awk '/^## 最終 PR に載せる内容/{f=1; next} /^## /{f=0} f' "$RALPH_STATE" 2>/dev/null | grep -v '^<!--.*-->$' || true)
     [[ -n "$(printf '%s' "$SUMMARY" | tr -d '[:space:]')" ]] || fail "$RALPH_STATE の「最終 PR に載せる内容」が空です（ループが STEP D で埋めます）"
     gh label create epic-final -R "$REPOSITORY" --color B60205 --description "epic から develop への最終 PR" >/dev/null 2>&1 || true
+    # 回答待ちの PR は、ループが書いた内容に頼らず、この時点で open なものを本文に載せる（ask の内容は各 PR を見てもらう）
+    if [[ -n "$WAITING" ]]; then
+      SUMMARY=$(printf '%s\n\n## 回答待ちの PR\n\n%s\n\n質問の内容はそれぞれの PR の ask を確認してください。' "$SUMMARY" "$(printf '%s\n' "${WAITING//,/$'\n'}" | sed 's/^/- #/')")
+    fi
     # 先頭の 2 行は、マージ時にゴール元の Discussion を閉じるワークフロー（close-goal-discussion.yml）が読む目印
     BODY=$(printf 'ゴール元: Discussion #%s\n<!-- ask-hub:discussion %s -->\n\n%s\n\n---\nこの PR は手動ループ（@%s）が作成しました。AskHub アプリの「要対応」タブの「マージ待ち」から確認して、merge commit でマージしてください。\n' \
       "$DISCUSSION" "$DISCUSSION" "$SUMMARY" "$(state_get runner)")
