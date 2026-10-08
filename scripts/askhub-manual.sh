@@ -14,6 +14,7 @@
 #   4. status: 状態用の Issue を書き手 manual・回している人つきで書き直す（playbook の STEP D から呼ぶ。10 分に 1 回まで）
 #   5. resume: 回答が付いた後などに、記録した完了語でループを起動し直す
 #   6. final:  ループが終わったら、ゴール元の目印つきの最終 PR（epic-final）を作る。制御用 worktree の外から呼ぶ
+#              goal に未完了のタスクが残っていれば作らない（回答待ちの PR だけが残っているときは作る）
 #
 # 必要なもの: gh（このリポジトリに書き込み権限のあるアカウントでログイン済み）・git・claude（ralph-loop プラグイン入り）
 set -euo pipefail
@@ -151,7 +152,7 @@ write_status() {
   epic=$(state_get epic)
   runner=$(state_get runner)
   [[ -n "$discussion" && -n "$epic" && -n "$runner" ]] || fail "手動ループの記録がありません（先に start を実行してください）"
-  waiting=$(gh pr list -R "$REPOSITORY" --base "$epic" --label needs-answer --state open --json number --jq '.[].number' | sort -n | paste -sd, -)
+  waiting=$(gh pr list -R "$REPOSITORY" --base "$epic" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
   state=$(compute_state "$stopping" "$waiting")
   total=$(count_lines '^- \[[ x]\]' "$GOAL")
   completed=$(count_lines '^- \[x\]' "$GOAL")
@@ -192,16 +193,22 @@ BODY
   # 信用する author が作った状態用の Issue のうち、open で最も新しく更新されたもの（無ければ閉じたもので最も新しく更新されたもの）を使う
   # 信用する author ごとに探す（信用外の author が loop-status の Issue を大量に作っても、件数の上限で取りこぼさない）
   local trusted author candidates=""
-  trusted=$(trusted_authors)
+  trusted=$(trusted_authors) || trusted=""
   # 取得できないときは状態用の Issue を作らない。ループ（STEP D や launch の後）を止めないよう、警告だけ出して成功で返す
   if [[ -z "$trusted" ]]; then
     echo "warning: 信用する author を取得できないため、状態用の Issue を更新しません（gh auth status と、このリポジトリの権限を確認してください）" >&2
     return 0
   fi
+  local result
   while IFS= read -r author; do
     [[ -n "$author" ]] || continue
-    candidates+=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
-                    --jq '.[] | "\(if .state == "OPEN" then 0 else 1 end)\t\(.updatedAt)\t\(.number)"')$'\n'
+    # 取得に失敗したときも、上と同じく警告だけ出して成功で返す（取りこぼしたまま新しい Issue を作らない）
+    if ! result=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
+                    --jq '.[] | "\(if .state == "OPEN" then 0 else 1 end)\t\(.updatedAt)\t\(.number)"'); then
+      echo "warning: @$author の状態用の Issue を取得できないため、状態用の Issue を更新しません（gh auth status を確認してください）" >&2
+      return 0
+    fi
+    candidates+="$result"$'\n'
   done < <(printf '%s\n' "${trusted//,/$'\n'}")
   issue=$(printf '%s' "$candidates" | sed '/^$/d' | sort -t $'\t' -k1,1n -k2,2r | head -n 1 | cut -f 3)
   if [[ -z "$issue" ]]; then
@@ -353,6 +360,27 @@ NEXT
     loop_alive && fail "ループがまだ動いています。終わってから最終 PR を作ってください"
     DISCUSSION=$(state_get discussion)
     EPIC=$(state_get epic)
+    # status と同じ判定で状態を求め、goal のタスクが終わっているときだけ進める
+    # 回答待ちの PR が残っていても作る（自動ループと同じ。回答待ちの PR は下で本文に載せる）
+    # goal が読めないと未完了のタスクを 0 件と数えてしまうので、先に拒否する
+    [[ -f "$GOAL" && -r "$GOAL" ]] || fail "goal がありません、または読み込めません: $GOAL"
+    WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
+    # ※回答待ちの未完了タスクごとに、goal に書いた PR（※回答待ち（PR #123 / ask id 456））が open な回答待ちの PR か確かめる
+    # PR を閉じた・ラベルを外したタスクは、compute_state では完了扱いになり、本文の「回答待ちの PR」にも載らないので拒否する
+    while IFS= read -r TASK; do
+      if [[ "${TASK#*※回答待ち}" =~ PR[[:space:]]*#([0-9]+) ]]; then
+        [[ ",$WAITING," == *",${BASH_REMATCH[1]},"* ]] \
+          || fail "goal の ※回答待ち のタスクの PR #${BASH_REMATCH[1]} が、open な回答待ちの PR（needs-answer）ではありません。goal を直すか、resume でループを再開してください: $TASK"
+      else
+        fail "goal の ※回答待ち のタスクに PR 番号がありません。goal を直してください: $TASK"
+      fi
+    done < <(grep -E '^- \[ \].*※回答待ち' "$GOAL" || true)
+    FINAL_STATE=$(compute_state true "$WAITING")
+    case "$FINAL_STATE" in
+      completed | waiting-for-answer) ;;
+      waiting-to-start) fail "goal に未完了のタスクが残っています（$GOAL）。scripts/askhub-manual.sh resume でループを再開してください" ;;
+      *) fail "ループの状態が「$(state_title "$FINAL_STATE")」のため、最終 PR を作れません" ;;
+    esac
     # マージせずに閉じた PR は既存として扱わない（作り直せるように）。open かマージ済みがあれば作らない
     EXISTING=$(gh pr list -R "$REPOSITORY" --head "$EPIC" --base "$BASE_BRANCH" --state all --json url,state --jq '[.[] | select(.state != "CLOSED")][0].url // ""')
     if [[ -n "$EXISTING" ]]; then
@@ -362,6 +390,10 @@ NEXT
     SUMMARY=$(awk '/^## 最終 PR に載せる内容/{f=1; next} /^## /{f=0} f' "$RALPH_STATE" 2>/dev/null | grep -v '^<!--.*-->$' || true)
     [[ -n "$(printf '%s' "$SUMMARY" | tr -d '[:space:]')" ]] || fail "$RALPH_STATE の「最終 PR に載せる内容」が空です（ループが STEP D で埋めます）"
     gh label create epic-final -R "$REPOSITORY" --color B60205 --description "epic から develop への最終 PR" >/dev/null 2>&1 || true
+    # 回答待ちの PR は、ループが書いた内容に頼らず、この時点で open なものを本文に載せる（ask の内容は各 PR を見てもらう）
+    if [[ -n "$WAITING" ]]; then
+      SUMMARY=$(printf '%s\n\n## 回答待ちの PR\n\n%s\n\n質問の内容はそれぞれの PR の ask を確認してください。' "$SUMMARY" "$(printf '%s\n' "${WAITING//,/$'\n'}" | sed 's/^/- #/')")
+    fi
     # 先頭の 2 行は、マージ時にゴール元の Discussion を閉じるワークフロー（close-goal-discussion.yml）が読む目印
     BODY=$(printf 'ゴール元: Discussion #%s\n<!-- ask-hub:discussion %s -->\n\n%s\n\n---\nこの PR は手動ループ（@%s）が作成しました。AskHub アプリの「要対応」タブの「マージ待ち」から確認して、merge commit でマージしてください。\n' \
       "$DISCUSSION" "$DISCUSSION" "$SUMMARY" "$(state_get runner)")
