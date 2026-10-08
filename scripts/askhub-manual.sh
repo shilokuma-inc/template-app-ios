@@ -283,7 +283,7 @@ launch_loop() {
   command -v "${ASKHUB_CLAUDE:-claude}" >/dev/null 2>&1 || fail "claude が見つかりません"
   loop_alive && fail "ループは既に動いています（PID $(cat "$PID_FILE")）。止めるには scripts/ralph-stop.sh"
   # 権限モードは、ループの state ファイルをよけてから確かめる（確認の起動がループの Stop hook に捕まらないように）。
-  # 確かめられなければ元に戻して止める（止まったループの状態を status が正しく出せるように）
+  # 確かめられない・新しい state を作れない・途中で中断されたときは元に戻して止める（止まったループの状態を status が正しく出せるように）
   local saved_state="" permission_mode
   if [[ -f "$LOOP_STATE" ]]; then
     saved_state="$LOOP_STATE.probe"
@@ -293,12 +293,13 @@ launch_loop() {
     trap 'exit 130' INT TERM
   fi
   permission_mode=$(loop_permission_mode) || exit 1
+  (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
+  [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
+  # 新しい state を作り終えてから、よけた state を消す（ralph-start.sh が失敗したときも元に戻せるように）
   if [[ -n "$saved_state" ]]; then
     trap - EXIT INT TERM
     rm -f "$saved_state"
   fi
-  (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
-  [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
   mkdir -p "$LOG_DIR"
   local log initial
   log="$LOG_DIR/$STEM-loop-$(date +%Y%m%d-%H%M%S).log"
