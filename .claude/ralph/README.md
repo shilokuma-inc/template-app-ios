@@ -217,7 +217,13 @@ ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書�
    状態・epic・進捗が変わったら書き換え、変わらなくても **10 分ごとに `checkedAt` を書き直す**（playbook の STEP D で、
    前回から 10 分たっていれば書き直す、と書いておく）。ループが止まって 30 分たつと、オーケストレーターが書き直す
 3. **最終 PR はループ（または人間）が `epic-final` を付けて作る**。オーケストレーターは手で回す制御用 worktree を見られないので作らない。
-   本文は state の「最終 PR に載せる内容」を使う:
+   本文は state の「最終 PR に載せる内容」を使い、**先頭に次の 2 行を入れる**（`N` はゴール元の Discussion の番号）。
+   マージ後に `close-goal-discussion.yml` が本文の 1 行目と 2 行目でゴール元の Discussion を特定するので、
+   この 2 行が無い・番号が一致しないと Discussion が閉じない:
+   ```text
+   ゴール元: Discussion #N
+   <!-- ask-hub:discussion N -->
+   ```
    ```bash
    epic=epic/FEATURE_NAME body=final-pr-body.md   # epic のブランチ（置き換える）と、最終 PR の本文を書いたファイル
    gh pr create --base develop --head "$epic" --title '【FEAT】…' --assignee @me --label epic-final --body-file "$body"
