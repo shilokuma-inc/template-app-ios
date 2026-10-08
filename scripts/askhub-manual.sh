@@ -324,8 +324,13 @@ NEXT
 
   final)
     [[ -f "$STATE_FILE" ]] || fail "手動ループの記録がありません"
-    if [[ -d "$CTL" && "$(pwd -P)" == "$(cd "$CTL" && pwd -P)"* ]]; then
-      fail "制御用 worktree の外（メインの checkout など）で実行してください"
+    # 制御用 worktree そのものか、その中なら拒否する（前方一致だと …-ralph-ctl2 のような別のディレクトリも拒否してしまう）
+    if [[ -d "$CTL" ]]; then
+      CTL_REAL=$(cd "$CTL" && pwd -P)
+      HERE=$(pwd -P)
+      if [[ "$HERE" == "$CTL_REAL" || "$HERE" == "$CTL_REAL/"* ]]; then
+        fail "制御用 worktree の外（メインの checkout など）で実行してください"
+      fi
     fi
     loop_alive && fail "ループがまだ動いています。終わってから最終 PR を作ってください"
     DISCUSSION=$(state_get discussion)
