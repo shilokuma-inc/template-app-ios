@@ -152,37 +152,64 @@ fi
   || cp .claude/ralph/goal.template.md "$CTL/.claude/ralph-goal.local.md"
 [[ -f "$CTL/.claude/ralph-state.local.md" ]] \
   || cp .claude/ralph/state.template.md "$CTL/.claude/ralph-state.local.md"
-# 既存の settings.json にテンプレートの deny が欠けていたら止める。
-# bypassPermissions で動くループにとって、deny は禁止操作を止める最初の層だから
+# 既存の settings.json にテンプレートの deny が欠けていたら足す（git 管理下の settings.json なら止める）。
+# bypassPermissions で動くループにとって、deny は禁止操作を止める最初の層だから。
+# テンプレートに deny を足したとき、前から使っている制御用 worktree の再開を止めずに行き渡らせる
 check_deny() {
-  local settings="$1"
+  local settings="$1" mode="${2:-add}"
   command -v jq >/dev/null 2>&1 \
     || { echo "エラー: jq が必要です（$settings の deny の検査に使います）" >&2; exit 1; }
+  # 空のファイル・JSON のオブジェクトでないもの・値が 2 つ以上続くものは、足すときに中身ごと置き換えてしまうので、先に止める
+  jq -s -e 'length == 1 and (.[0] | type == "object")' "$settings" >/dev/null 2>&1 \
+    || { echo "エラー: $settings を JSON のオブジェクトとして読めません" >&2; exit 1; }
   local missing
   missing=$(jq -r --slurpfile have "$settings" \
     '.permissions.deny - ($have[0].permissions.deny // []) | .[]' \
     .claude/ralph/settings.deny.example.json) \
     || { echo "エラー: $settings を JSON として読めません" >&2; exit 1; }
-  if [[ -n "$missing" ]]; then
-    echo "エラー: $settings に次の deny がありません。統合してから再実行してください:" >&2
-    echo "$missing" | sed 's/^/      /' >&2
-    exit 1
+  [[ -n "$missing" ]] || return 0
+  if [[ "$mode" == add ]]; then
+    local merged
+    merged=$(mktemp "$settings.XXXXXX")
+    if jq --slurpfile template .claude/ralph/settings.deny.example.json \
+      '.permissions.deny = ((.permissions.deny // []) + ($template[0].permissions.deny - (.permissions.deny // [])))' \
+      "$settings" > "$merged" \
+      && jq -e '.permissions.deny | type == "array" and length > 0' "$merged" >/dev/null; then
+      mv "$merged" "$settings" \
+        || { rm -f "$merged"; echo "エラー: $settings を置き換えられませんでした" >&2; exit 1; }
+    else
+      rm -f "$merged"
+      echo "エラー: $settings に deny を足せませんでした" >&2
+      exit 1
+    fi
+    echo "$settings に、テンプレートの deny を足しました:"
+    echo "$missing" | sed 's/^/      /'
+    return 0
   fi
+  echo "エラー: $settings に次の deny がありません。統合してから再実行してください:" >&2
+  echo "$missing" | sed 's/^/      /' >&2
+  exit 1
 }
 
 # deny リストは制御用 worktree にだけ置く。リポジトリにコミットすると
 # gh pr create --base <base> の deny が通常開発の PR 作成まで塞いでしまう。
 if git ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
   echo "警告: .claude/settings.json が git 管理下にあります。deny リストは手で統合してください" >&2
-  # git 管理下でも、制御用 worktree で効く設定に deny が揃っていなければ止める
+  # git 管理下でも、制御用 worktree で効く設定に deny が揃っていなければ止める（git 管理下のファイルは書き換えない）
   if [[ -f "$CTL/.claude/settings.json" ]]; then
-    check_deny "$CTL/.claude/settings.json"
+    check_deny "$CTL/.claude/settings.json" stop
   else
     echo "エラー: $CTL/.claude/settings.json がありません。deny リストを統合してから再実行してください" >&2
     exit 1
   fi
 else
-  if [[ -f "$CTL/.claude/settings.json" ]]; then
+  # 実行元で git 管理外でも、制御用 worktree のブランチ（統合ブランチ）では git 管理下のことがある。
+  # そのときは書き換えたり作ったりすると統合ブランチに載ってしまうので、止めて手で統合してもらう
+  if git -C "$CTL" ls-files --error-unmatch .claude/settings.json >/dev/null 2>&1; then
+    [[ -f "$CTL/.claude/settings.json" ]] \
+      || { echo "エラー: $CTL/.claude/settings.json は統合ブランチで git 管理下なのに、ありません。deny リストを統合してから再実行してください" >&2; exit 1; }
+    check_deny "$CTL/.claude/settings.json" stop
+  elif [[ -f "$CTL/.claude/settings.json" ]]; then
     check_deny "$CTL/.claude/settings.json"
   else
     cp .claude/ralph/settings.deny.example.json "$CTL/.claude/settings.json"
