@@ -205,8 +205,10 @@ ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書�
    gh api graphql -f query='mutation($d:ID!,$l:ID!){ removeLabelsFromLabelable(input:{labelableId:$d,labelIds:[$l]}){ clientMutationId } }' \
      -f d="$discussion" -f l="$label"
    ```
-2. **loop-status を書き手 `manual` で書く**。リポジトリの状態用の Issue（ラベル `loop-status`、タイトル `【AskHub】ループの状態`。
-   信用する author が作った open なもののうち最も新しく更新されたもの。無ければ同じタイトル・ラベルで作る）の本文の先頭に、目印を置く:
+2. **loop-status を書き手 `manual` で書く**。リポジトリの状態用の Issue（信用する author が作った open な `loop-status` の Issue のうち、
+   最も新しく更新されたもの。オーケストレーターもタイトルでは選ばない）の本文の先頭に、目印を置く。
+   該当する Issue が無ければ、ラベル `loop-status`・タイトル `【AskHub】ループの状態` で作る（ラベルが無ければ、先に
+   `gh label create loop-status --color BFDADC --description 'AskHub のオーケストレーターがループの状態を書き出す Issue'` で作る）:
    ```html
    <!-- ask-hub:loop-status {"checkedAt":"CHECKED_AT","discussion":DISCUSSION_NUMBER,"epic":"epic/FEATURE_NAME","progress":{"completed":COMPLETED,"total":TOTAL},"state":"running","writer":"manual"} -->
    ```
