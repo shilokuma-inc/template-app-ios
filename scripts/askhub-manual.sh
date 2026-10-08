@@ -234,32 +234,44 @@ BODY
 # init の行が出たら（または ASKHUB_PROBE_TIMEOUT 秒（既定 60）たったら）、子プロセスごと止める
 # （固まっても launch を止めない。claude の子プロセスが出力を開いたまま残っても待たないよう、新しいプロセスグループで起動する）。読めなければ空
 effective_permission_mode() {
-  local mode="$1" dir pid ticks=0 found="" limit=$(( ${ASKHUB_PROBE_TIMEOUT:-60} * 10 ))
-  dir=$(mktemp -d)
+  local mode="$1" ticks=0 found="" limit=$(( ${ASKHUB_PROBE_TIMEOUT:-60} * 10 ))
+  # 確認の claude には Ctrl-C の SIGINT が届かないので、途中で中断（Ctrl-C・TERM）されたときも止めて、一時ディレクトリを消す。
+  # trap からは関数の local 変数が見えないので、PROBE_DIR・PROBE_PID に入れる（コマンド置換の中で呼ぶので、呼び出し元の変数と trap は変えない）
+  PROBE_DIR="" PROBE_PID=""
+  trap 'stop_probe "${PROBE_PID:-}"; [[ -z "${PROBE_DIR:-}" ]] || rm -rf "$PROBE_DIR"' EXIT
+  trap 'exit 130' INT TERM
+  PROBE_DIR=$(mktemp -d)
   (cd "$CTL" && exec perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" \
       --settings '{"disableAllHooks":true}' --no-session-persistence --output-format stream-json --verbose --max-turns 1 \
-      "OK とだけ答えてください" </dev/null >"$dir/out" 2>/dev/null) &
-  pid=$!
+      "OK とだけ答えてください" </dev/null >"$PROBE_DIR/out" 2>/dev/null) &
+  PROBE_PID=$!
   while (( ticks < limit )); do
-    found=$(grep -m 1 '"subtype":"init"' "$dir/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+    found=$(grep -m 1 '"subtype":"init"' "$PROBE_DIR/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
     [[ -n "$found" ]] && break
-    kill -0 "$pid" 2>/dev/null || break
+    kill -0 "$PROBE_PID" 2>/dev/null || break
     sleep 0.1
     ticks=$(( ticks + 1 ))
   done
   # 終わる直前に書かれた init も拾う
-  [[ -n "$found" ]] || found=$(grep -m 1 '"subtype":"init"' "$dir/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+  [[ -n "$found" ]] || found=$(grep -m 1 '"subtype":"init"' "$PROBE_DIR/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+  stop_probe "$PROBE_PID"
+  trap - EXIT INT TERM
+  rm -rf "$PROBE_DIR"
+  printf '%s' "$found"
+}
+
+# 確認の claude を、子プロセスごと止める。
+# TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する
+stop_probe() {
+  local pid="$1" grace=0
+  [[ -n "$pid" ]] || return 0
   kill -TERM -- "-$pid" 2>/dev/null || true
-  # TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する
-  local grace=0
   while kill -0 -- "-$pid" 2>/dev/null && (( grace < 20 )); do
     sleep 0.1
     grace=$(( grace + 1 ))
   done
   kill -KILL -- "-$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
-  rm -rf "$dir"
-  printf '%s' "$found"
 }
 
 # ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない
