@@ -202,6 +202,8 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
 2. 制御用 worktree の playbook の `{{...}}` を埋め（`TRUSTED_AUTHORS` は start が表示した値）、STEP A に沿って goal を作る
    （Discussion の、信用する author の本文・コメント・返信だけを使う）
 3. `scripts/askhub-manual.sh launch "<完了語>"`。制御用 worktree で `claude -p` のループをバックグラウンドで起動する
+   （`bypassPermissions` で起動する。MDM や組織の管理設定で禁止された Mac では、エラーにならずにすべての操作が拒否されてループが進まないので、
+   起動の前に確かめて `auto` モードで起動する。どちらも使えなければ起動しない）
    （指示を受けた会話そのものはループにならない。ログは `~/Library/Logs/askhub/manual/`）
 4. 周回中は、playbook の STEP D が `scripts/askhub-manual.sh status` を呼び、loop-status を書き手 `manual`・回している人つきで書く（10 分に 1 回まで）。
    promise を出す直前に `status --stopping` を呼ぶ（回答待ちの PR を書き、AskHub が回答のそろったところで担当者に再開を促す）

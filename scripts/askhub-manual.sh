@@ -11,6 +11,7 @@
 #              信用する author（このリポジトリに書き込み権限を持つ人）を表示し、状態用の Issue を「開始待ち」で書く
 #   2. （Claude が playbook の {{...}} を埋め、STEP A に沿って goal を作る）
 #   3. launch: 完了語を記録し、ralph-start.sh で state を作り、制御用 worktree で claude -p のループをバックグラウンドで起動する
+#              （bypassPermissions で起動する。MDM などで禁止された Mac では auto モード。どちらも使えなければ起動しない）
 #   4. status: 状態用の Issue を書き手 manual・回している人つきで書き直す（playbook の STEP D から呼ぶ。10 分に 1 回まで）
 #   5. resume: 回答が付いた後などに、記録した完了語でループを起動し直す
 #   6. final:  ループが終わったら、ゴール元の目印つきの最終 PR（epic-final）を作る。制御用 worktree の外から呼ぶ
@@ -225,10 +226,43 @@ BODY
 
 # ---- ループの起動 --------------------------------------------------------------------------
 
+# claude を指定の権限モードで起動したとき、実際に効く権限モード（起動時の init イベントから読む）。
+# MDM や組織の管理設定で bypassPermissions が禁止されていると、エラーにならずに default で起動し、
+# 確認の要る操作（ファイルの編集・コマンド）がすべて黙って拒否されるので、起動の前に確かめる。
+# 制御用 worktree のループの Stop hook に捕まらないよう、一時ディレクトリで hook を止めて起動する。読めなければ空
+effective_permission_mode() {
+  local mode="$1" dir
+  dir=$(mktemp -d)
+  (cd "$dir" && "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" --settings '{"disableAllHooks":true}' \
+      --no-session-persistence --output-format stream-json --verbose --max-turns 1 "OK とだけ答えてください" \
+      </dev/null 2>/dev/null \
+    | grep -m 1 '"subtype":"init"' \
+    | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p') || true
+  rm -rf "$dir"
+}
+
+# ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない
+loop_permission_mode() {
+  local mode
+  mode=$(effective_permission_mode bypassPermissions)
+  if [[ "$mode" == bypassPermissions ]]; then
+    echo bypassPermissions
+    return 0
+  fi
+  echo "この Mac では bypassPermissions が使えないため（起動時の権限モード: ${mode:-不明}）、auto モードで起動します" >&2
+  mode=$(effective_permission_mode auto)
+  if [[ "$mode" != auto ]]; then
+    fail "この Mac では bypassPermissions も auto モードも使えません（起動時の権限モード: ${mode:-不明}）。確認の要る操作がすべて拒否されてループが進まないため、起動しません"
+  fi
+  echo auto
+}
+
 launch_loop() {
   local promise="$1"
   command -v "${ASKHUB_CLAUDE:-claude}" >/dev/null 2>&1 || fail "claude が見つかりません"
   loop_alive && fail "ループは既に動いています（PID $(cat "$PID_FILE")）。止めるには scripts/ralph-stop.sh"
+  local permission_mode
+  permission_mode=$(loop_permission_mode)
   [[ -f "$LOOP_STATE" ]] && rm -f "$LOOP_STATE"
   (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
   [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
@@ -240,11 +274,12 @@ launch_loop() {
   (
     cd "$CTL"
     nohup "${ASKHUB_CLAUDE:-claude}" -p --add-dir "${CTL%-ctl}-a" --add-dir "${CTL%-ctl}-b" \
-      --permission-mode bypassPermissions "$initial" </dev/null >>"$log" 2>&1 &
+      --permission-mode "$permission_mode" "$initial" </dev/null >>"$log" 2>&1 &
     echo $! > "$PID_FILE"
   )
   state_set log "$log"
-  echo "ループを起動しました（PID $(cat "$PID_FILE")、ログ: $log）"
+  state_set permission_mode "$permission_mode"
+  echo "ループを起動しました（PID $(cat "$PID_FILE")、権限モード: $permission_mode、ログ: $log）"
   echo "進み具合を見るには: tail -f \"$log\""
   write_status false true
 }
