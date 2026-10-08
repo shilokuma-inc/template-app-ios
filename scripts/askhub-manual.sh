@@ -184,13 +184,15 @@ write_status() {
 BODY
 )
   # 信用する author が作った状態用の Issue のうち、open で最も新しく更新されたもの（無ければ閉じたもので最も新しく更新されたもの）を使う
-  local trusted
+  # 信用する author ごとに探す（信用外の author が loop-status の Issue を大量に作っても、件数の上限で取りこぼさない）
+  local trusted author candidates=""
   trusted=$(trusted_authors)
-  issue=""
-  while IFS=$'\t' read -r number author; do
-    if is_trusted "$author" "$trusted"; then issue="$number"; break; fi
-  done < <(gh issue list -R "$REPOSITORY" --label loop-status --state all --limit 100 --json number,author,state,updatedAt \
-             --jq 'sort_by([(if .state == "OPEN" then 0 else 1 end), (.updatedAt | fromdateiso8601 | -.)]) | .[] | "\(.number)\t\(.author.login)"')
+  while IFS= read -r author; do
+    [[ -n "$author" ]] || continue
+    candidates+=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
+                    --jq '.[] | "\(if .state == "OPEN" then 0 else 1 end)\t\(.updatedAt)\t\(.number)"')$'\n'
+  done < <(printf '%s\n' "${trusted//,/$'\n'}")
+  issue=$(printf '%s' "$candidates" | sed '/^$/d' | sort -t $'\t' -k1,1n -k2,2r | head -n 1 | cut -f 3)
   if [[ -z "$issue" ]]; then
     gh label create loop-status -R "$REPOSITORY" --color bfdadc --description "AskHub のループの状態を書き出す Issue" >/dev/null 2>&1 || true
     gh issue create -R "$REPOSITORY" --title "【AskHub】ループの状態" --label loop-status --body "$body" >/dev/null
