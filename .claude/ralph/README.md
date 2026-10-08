@@ -204,8 +204,11 @@ ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書�
 2. **loop-status を書き手 `manual` で書く**。リポジトリの状態用の Issue（ラベル `loop-status`、タイトル `【AskHub】ループの状態`。
    信用する author が作った open なもののうち最も新しく更新されたもの。無ければ同じタイトル・ラベルで作る）の本文の先頭に、目印を置く:
    ```html
-   <!-- ask-hub:loop-status {"checkedAt":"2026-10-08T00:10:00Z","discussion":12,"epic":"epic/<機能名>","progress":{"completed":3,"total":8},"state":"running","writer":"manual"} -->
+   <!-- ask-hub:loop-status {"checkedAt":"CHECKED_AT","discussion":DISCUSSION_NUMBER,"epic":"epic/FEATURE_NAME","progress":{"completed":COMPLETED,"total":TOTAL},"state":"running","writer":"manual"} -->
    ```
+   大文字の値は置き換える。`CHECKED_AT` は書き込む時点の UTC 時刻（`date -u +%Y-%m-%dT%H:%M:%SZ` の出力）、
+   `DISCUSSION_NUMBER` はゴール元の Discussion の番号、`COMPLETED` / `TOTAL` は完了したタスクの数と全タスクの数。
+   例の値をそのまま貼らない（未来の時刻を書くと、ループが止まってもオーケストレーターの引き継ぎがその分遅れる）。
    形式は ask-hub-apple の `docs/protocol.md` の「ループの状態」（時刻は秒までの ISO 8601・UTC。ローカルパスや PC 名は書かない）。
    状態・epic・進捗が変わったら書き換え、変わらなくても **10 分ごとに `checkedAt` を書き直す**（playbook の STEP D で、
    前回から 10 分たっていれば書き直す、と書いておく）。ループが止まって 30 分たつと、オーケストレーターが書き直す
