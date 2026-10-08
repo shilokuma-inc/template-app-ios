@@ -359,6 +359,10 @@ NEXT
     # goal が読めないと未完了のタスクを 0 件と数えてしまうので、先に拒否する
     [[ -f "$GOAL" && -r "$GOAL" ]] || fail "goal がありません、または読み込めません: $GOAL"
     WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
+    # ※回答待ちの未完了タスクが残っているのに、open な回答待ちの PR が無い（PR を閉じた・ラベルを外した）ときは、goal と食い違うので拒否する
+    if [[ -z "$WAITING" ]] && grep -qE '^- \[ \].*※回答待ち' "$GOAL"; then
+      fail "goal に ※回答待ち の未完了タスクが残っていますが、open な回答待ちの PR（needs-answer）がありません。goal を直すか、resume でループを再開してください"
+    fi
     FINAL_STATE=$(compute_state true "$WAITING")
     case "$FINAL_STATE" in
       completed | waiting-for-answer) ;;
