@@ -63,6 +63,12 @@ state_set() {
   mv "$STATE_FILE.tmp" "$STATE_FILE"
 }
 
+# start で記録した base branch を、resume・final でも使う（ASKHUB_BASE_BRANCH を付け忘れても、開始時と同じ base になるように）
+if [[ "$COMMAND" != start ]]; then
+  RECORDED_BASE=$(state_get base_branch)
+  if [[ -n "$RECORDED_BASE" ]]; then BASE_BRANCH="$RECORDED_BASE"; fi
+fi
+
 viewer() { gh api user --jq .login; }
 
 # このリポジトリで信用する author（書き込み権限を持つアカウント。AskHub と同じ判定）
@@ -283,6 +289,7 @@ case "$COMMAND" in
     state_set repository "$REPOSITORY"
     state_set discussion "$DISCUSSION"
     state_set epic "$EPIC"
+    state_set base_branch "$BASE_BRANCH"
     state_set runner "$ME"
     write_status false true
     cat <<NEXT
