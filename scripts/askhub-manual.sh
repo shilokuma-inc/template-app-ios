@@ -230,7 +230,7 @@ BODY
 # MDM や組織の管理設定で bypassPermissions が禁止されていると、エラーにならずに default で起動し、
 # 確認の要る操作（ファイルの編集・コマンド）がすべて黙って拒否されるので、起動の前に確かめる。
 # 本番のループと同じプロジェクト設定（制御用 worktree の .claude/settings.json など）で判定するよう、制御用 worktree で起動する。
-# ループの Stop hook に捕まらないよう、hook を止めて起動し、ループの state ファイルを消した後に呼ぶ（launch_loop）。
+# ループの Stop hook に捕まらないよう、hook を止めて起動し、ループの state ファイルをよけた後に呼ぶ（launch_loop）。
 # init の行が出たら（または ASKHUB_PROBE_TIMEOUT 秒（既定 60）たったら）、子プロセスごと止める
 # （固まっても launch を止めない。claude の子プロセスが出力を開いたまま残っても待たないよう、新しいプロセスグループで起動する）。読めなければ空
 effective_permission_mode() {
@@ -282,10 +282,18 @@ launch_loop() {
   local promise="$1"
   command -v "${ASKHUB_CLAUDE:-claude}" >/dev/null 2>&1 || fail "claude が見つかりません"
   loop_alive && fail "ループは既に動いています（PID $(cat "$PID_FILE")）。止めるには scripts/ralph-stop.sh"
-  [[ -f "$LOOP_STATE" ]] && rm -f "$LOOP_STATE"
-  # 権限モードは、ループの state ファイルが無いうちに確かめる（確認の起動がループの Stop hook に捕まらないように）
-  local permission_mode
-  permission_mode=$(loop_permission_mode)
+  # 権限モードは、ループの state ファイルをよけてから確かめる（確認の起動がループの Stop hook に捕まらないように）。
+  # 確かめられなければ元に戻して止める（止まったループの状態を status が正しく出せるように）
+  local saved_state="" permission_mode
+  if [[ -f "$LOOP_STATE" ]]; then
+    saved_state="$LOOP_STATE.probe"
+    mv "$LOOP_STATE" "$saved_state"
+  fi
+  if ! permission_mode=$(loop_permission_mode); then
+    if [[ -n "$saved_state" ]]; then mv "$saved_state" "$LOOP_STATE"; fi
+    exit 1
+  fi
+  if [[ -n "$saved_state" ]]; then rm -f "$saved_state"; fi
   (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
   [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
   mkdir -p "$LOG_DIR"
