@@ -277,16 +277,17 @@ stop_probe() {
   wait "$pid" 2>/dev/null || true
 }
 
-# ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない
+# ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない。
+# 確認が中断されたとき（コマンド置換が失敗したとき）は、次の確認に進まずに失敗を返す
 loop_permission_mode() {
   local mode
-  mode=$(effective_permission_mode bypassPermissions)
+  mode=$(effective_permission_mode bypassPermissions) || return 1
   if [[ "$mode" == bypassPermissions ]]; then
     echo bypassPermissions
     return 0
   fi
   echo "この Mac では bypassPermissions が使えないため（起動時の権限モード: ${mode:-不明}）、auto モードで起動します" >&2
-  mode=$(effective_permission_mode auto)
+  mode=$(effective_permission_mode auto) || return 1
   if [[ "$mode" != auto ]]; then
     fail "この Mac では bypassPermissions も auto モードも使えません（起動時の権限モード: ${mode:-不明}）。確認の要る操作がすべて拒否されてループが進まないため、起動しません"
   fi
