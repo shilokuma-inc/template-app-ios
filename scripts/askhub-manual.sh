@@ -267,6 +267,8 @@ case "$COMMAND" in
     if [[ "$(printf '%s' "$ASSIGNEE" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$ME" | tr '[:upper:]' '[:lower:]')" && "${ASKHUB_MANUAL_FORCE:-}" != 1 ]]; then
       fail "この手動ループの担当者は @$ASSIGNEE です（あなたは @$ME）。担当を変えるときは、Discussion に担当のコメントを付け直してください"
     fi
+    # 同じ Discussion でも、動いているループの記録（完了語など）を消さないように拒否する
+    loop_alive && fail "制御用 worktree でループが動いています（PID $(cat "$PID_FILE")）。止めてから start を実行してください（止めるには scripts/ralph-stop.sh）"
     PREVIOUS=$(state_get discussion)
     if [[ -n "$PREVIOUS" && "$PREVIOUS" != "$DISCUSSION" && -f "$LOOP_STATE" ]]; then
       fail "制御用 worktree で Discussion #$PREVIOUS の手動ループが途中です。終わってから始めてください"
