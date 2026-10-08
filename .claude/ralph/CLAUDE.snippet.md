@@ -25,10 +25,10 @@ ralph-loop の存在と手順に到達できる。ralph-setup.sh はこの記載
 <リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N
 ```
 
-担当 PC のオーケストレーターに任せず手で回すときは、Discussion に `manual-loop` を付けたうえで末尾に「手動で回して」を付ける。
-始めるときに `ready-for-loop` を外し、loop-status を書き手 `manual` で書いて 10 分ごとに `checkedAt` を書き直し、
-最終 PR は `epic-final` を付けて自分で作る（手順は `.claude/ralph/README.md` の「手で回す（manual-loop）」）:
+担当者が自分の Mac の Claude Code で手動ループを回すとき（AskHub で「手動で回す」を選び、担当者に指定されたとき）は、AskHub からコピーした次の指示を受ける。
+手順は `.claude/ralph/README.md` の「手で回す（manual-loop）」にあり、**`scripts/askhub-manual.sh`（start → launch → status → resume → final）で行う**:
 
 ```
-<リポジトリ> で epic/<機能名> のループを回したい。ゴールは Discussion #N。手動で回して
+<リポジトリ> で Discussion #N の epic を手動ループで回して（scripts/askhub-manual.sh を使う）
+<リポジトリ> の Discussion #N の手動ループを再開して（scripts/askhub-manual.sh resume）
 ```
