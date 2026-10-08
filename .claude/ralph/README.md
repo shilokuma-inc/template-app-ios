@@ -193,7 +193,7 @@ ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書�
 
 1. **始めるときに `ready-for-loop` を外す**（付いていれば）。Discussion のラベルは REST で外せないので GraphQL を使う:
    ```bash
-   owner=<owner> repo=<repo> number=<ゴール元の Discussion の番号>
+   owner=OWNER repo=REPO number=DISCUSSION_NUMBER   # ゴール元の Discussion に合わせて置き換える
    ids=$(gh api graphql -f query='query($o:String!,$r:String!,$n:Int!){ repository(owner:$o,name:$r){
      discussion(number:$n){ id } label(name:"ready-for-loop"){ id } } }' \
      -f o="$owner" -f r="$repo" -F n="$number" --jq '.data.repository | "\(.discussion.id) \(.label.id)"')
@@ -212,7 +212,7 @@ ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書�
 3. **最終 PR はループ（または人間）が `epic-final` を付けて作る**。オーケストレーターは手で回す制御用 worktree を見られないので作らない。
    本文は state の「最終 PR に載せる内容」を使う:
    ```bash
-   epic=epic/<機能名> body=final-pr-body.md   # epic のブランチと、「最終 PR に載せる内容」を書いたファイル
+   epic=epic/FEATURE_NAME body=final-pr-body.md   # epic のブランチ（置き換える）と、最終 PR の本文を書いたファイル
    gh pr create --base develop --head "$epic" --title '【FEAT】…' --assignee @me --label epic-final --body-file "$body"
    ```
    制御用 worktree の `.claude/settings.json` の deny は `gh pr create --base develop` を塞ぐ（通常のループが最終 PR を作らないため）。
