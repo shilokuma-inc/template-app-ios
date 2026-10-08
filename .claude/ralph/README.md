@@ -197,7 +197,7 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
 指示を受けた Claude は、**`scripts/askhub-manual.sh` で次を行う**（ラベル・状態の書き出し・最終 PR の目印を手で行わない。抜けると AskHub に正しく出ない）:
 
 1. `scripts/askhub-manual.sh start <N> epic/<機能名>`（epic 名は Discussion の内容から決める）。
-   担当者が自分か確かめ、`ready-for-loop` を外し、`ralph-setup.sh` で制御用 worktree とスロットを作り（epic は `ASKHUB_BASE_BRANCH`（既定は `develop`）から切る）、epic を origin に push し、loop-status を「開始待ち」で書く。
+   担当者が自分か確かめ、`ralph-setup.sh` で制御用 worktree とスロットを作り（epic は `ASKHUB_BASE_BRANCH`（既定は `develop`）から切る）、epic を origin に push してから `ready-for-loop` を外し、loop-status を「開始待ち」で書く。
    信用する author（書き込み権限を持つ人）と、次に埋める値を表示する
 2. 制御用 worktree の playbook の `{{...}}` を埋め（`TRUSTED_AUTHORS` は start が表示した値）、STEP A に沿って goal を作る
    （Discussion の、信用する author の本文・コメント・返信だけを使う）

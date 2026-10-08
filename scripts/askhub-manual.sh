@@ -7,7 +7,7 @@
 #          scripts/askhub-manual.sh final
 #
 # 流れ（担当者の Claude Code が、AskHub からコピーした指示を受けて行う）:
-#   1. start:  担当者が自分か確かめ、ready-for-loop を外し、ralph-setup.sh で制御用 worktree とスロットを作り、epic を origin に push する。
+#   1. start:  担当者が自分か確かめ、ralph-setup.sh で制御用 worktree とスロットを作り、epic を origin に push してから ready-for-loop を外す。
 #              信用する author（このリポジトリに書き込み権限を持つ人）を表示し、状態用の Issue を「開始待ち」で書く
 #   2. （Claude が playbook の {{...}} を埋め、STEP A に沿って goal を作る）
 #   3. launch: 完了語を記録し、ralph-start.sh で state を作り、制御用 worktree で claude -p のループをバックグラウンドで起動する
@@ -328,10 +328,11 @@ case "$COMMAND" in
     if [[ -n "$PREVIOUS" && "$PREVIOUS" != "$DISCUSSION" && -f "$LOOP_STATE" ]]; then
       fail "制御用 worktree で Discussion #$PREVIOUS の手動ループが途中です。終わってから始めてください"
     fi
-    remove_ready_label "$DISCUSSION_ID"
     (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" "$BASE_BRANCH" >/dev/null)
     # 子 PR の base になるので、epic を origin に置いておく（ralph-setup.sh は push しない）
     git -C "$MAIN" push --quiet -u origin "$EPIC" || fail "$EPIC を origin に push できません"
+    # 準備と push が済んでから ready-for-loop を外す（途中で失敗したとき、ラベルだけ外れた状態を残さない）
+    remove_ready_label "$DISCUSSION_ID"
     rm -f "$STATE_FILE"
     state_set repository "$REPOSITORY"
     state_set discussion "$DISCUSSION"
