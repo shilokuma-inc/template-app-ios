@@ -170,7 +170,10 @@ check_deny() {
   [[ -n "$missing" ]] || return 0
   if [[ "$mode" == add ]]; then
     local merged
-    merged=$(mktemp "$settings.XXXXXX")
+    merged=$(mktemp "$settings.XXXXXX") \
+      || { echo "エラー: $settings の隣に一時ファイルを作れませんでした" >&2; exit 1; }
+    # mktemp は 0600 で作るので、置き換えても元の settings.json の権限が変わらないよう合わせる
+    chmod "$(stat -f '%Lp' "$settings" 2>/dev/null || stat -c '%a' "$settings")" "$merged" 2>/dev/null || true
     if jq --slurpfile template .claude/ralph/settings.deny.example.json \
       '.permissions.deny = ((.permissions.deny // []) + ($template[0].permissions.deny - (.permissions.deny // [])))' \
       "$settings" > "$merged" \
