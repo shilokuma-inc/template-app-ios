@@ -14,6 +14,7 @@
 #   4. status: 状態用の Issue を書き手 manual・回している人つきで書き直す（playbook の STEP D から呼ぶ。10 分に 1 回まで）
 #   5. resume: 回答が付いた後などに、記録した完了語でループを起動し直す
 #   6. final:  ループが終わったら、ゴール元の目印つきの最終 PR（epic-final）を作る。制御用 worktree の外から呼ぶ
+#              goal に未完了のタスクが残っていれば作らない（回答待ちの PR だけが残っているときは作る）
 #
 # 必要なもの: gh（このリポジトリに書き込み権限のあるアカウントでログイン済み）・git・claude（ralph-loop プラグイン入り）
 set -euo pipefail
@@ -353,6 +354,15 @@ NEXT
     loop_alive && fail "ループがまだ動いています。終わってから最終 PR を作ってください"
     DISCUSSION=$(state_get discussion)
     EPIC=$(state_get epic)
+    # status と同じ判定で状態を求め、goal のタスクが終わっているときだけ進める
+    # 回答待ちの PR が残っていても作る（自動ループと同じ。ループが「最終 PR に載せる内容」に回答待ちの PR を書き、本文に載る）
+    WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --json number --jq '.[].number' | sort -n | paste -sd, -)
+    FINAL_STATE=$(compute_state true "$WAITING")
+    case "$FINAL_STATE" in
+      completed | waiting-for-answer) ;;
+      waiting-to-start) fail "goal に未完了のタスクが残っています（$GOAL）。scripts/askhub-manual.sh resume でループを再開してください" ;;
+      *) fail "ループの状態が「$(state_title "$FINAL_STATE")」のため、最終 PR を作れません" ;;
+    esac
     # マージせずに閉じた PR は既存として扱わない（作り直せるように）。open かマージ済みがあれば作らない
     EXISTING=$(gh pr list -R "$REPOSITORY" --head "$EPIC" --base "$BASE_BRANCH" --state all --json url,state --jq '[.[] | select(.state != "CLOSED")][0].url // ""')
     if [[ -n "$EXISTING" ]]; then
