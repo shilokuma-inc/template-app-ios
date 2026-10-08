@@ -214,7 +214,9 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
    **制御用 worktree の外で** `scripts/askhub-manual.sh final`。ゴール元の目印つきの最終 PR（`epic-final`）を作る。
    goal に未完了のタスク（`※回答待ち` のものを除く）が残っていれば作らない。回答待ちの PR だけが残っているときは作り（自動ループと同じ）、その時点で open な回答待ちの PR を本文の「回答待ちの PR」に載せる。
    `※回答待ち` のタスクは、goal に書いた PR（`※回答待ち（PR #123 / ask id 456）`）が open な回答待ちの PR（`needs-answer`）でなければ作らない。
-   マージは AskHub の「要対応」タブの「マージ待ち」から（マージするとゴール元の Discussion が閉じる）
+   マージは AskHub の「要対応」タブの「マージ待ち」から（マージするとゴール元の Discussion が閉じる）。
+   `ASKHUB_BASE_BRANCH` を `develop` 以外にしたときは、Discussion を閉じるワークフロー（`close-goal-discussion.yml`）が動かないので、
+   マージした後に担当者がゴール元の Discussion を閉じる（閉じるまで、このリポジトリの自動ループは止まったまま）
 
 ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書き方は自動のときと同じ（AskHub の受信箱でそのまま扱える）。
 
