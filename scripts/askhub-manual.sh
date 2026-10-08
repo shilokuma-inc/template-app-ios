@@ -199,10 +199,16 @@ BODY
     echo "warning: 信用する author を取得できないため、状態用の Issue を更新しません（gh auth status と、このリポジトリの権限を確認してください）" >&2
     return 0
   fi
+  local result
   while IFS= read -r author; do
     [[ -n "$author" ]] || continue
-    candidates+=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
-                    --jq '.[] | "\(if .state == "OPEN" then 0 else 1 end)\t\(.updatedAt)\t\(.number)"')$'\n'
+    # 取得に失敗したときも、上と同じく警告だけ出して成功で返す（取りこぼしたまま新しい Issue を作らない）
+    if ! result=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
+                    --jq '.[] | "\(if .state == "OPEN" then 0 else 1 end)\t\(.updatedAt)\t\(.number)"'); then
+      echo "warning: @$author の状態用の Issue を取得できないため、状態用の Issue を更新しません（gh auth status を確認してください）" >&2
+      return 0
+    fi
+    candidates+="$result"$'\n'
   done < <(printf '%s\n' "${trusted//,/$'\n'}")
   issue=$(printf '%s' "$candidates" | sed '/^$/d' | sort -t $'\t' -k1,1n -k2,2r | head -n 1 | cut -f 3)
   if [[ -z "$issue" ]]; then
