@@ -288,12 +288,15 @@ launch_loop() {
   if [[ -f "$LOOP_STATE" ]]; then
     saved_state="$LOOP_STATE.probe"
     mv "$LOOP_STATE" "$saved_state"
+    # 確かめられなかったとき・途中で中断されたときは、よけた state を元に戻す
+    trap "mv $(printf '%q' "$saved_state") $(printf '%q' "$LOOP_STATE") 2>/dev/null || true" EXIT
+    trap 'exit 130' INT TERM
   fi
-  if ! permission_mode=$(loop_permission_mode); then
-    if [[ -n "$saved_state" ]]; then mv "$saved_state" "$LOOP_STATE"; fi
-    exit 1
+  permission_mode=$(loop_permission_mode) || exit 1
+  if [[ -n "$saved_state" ]]; then
+    trap - EXIT INT TERM
+    rm -f "$saved_state"
   fi
-  if [[ -n "$saved_state" ]]; then rm -f "$saved_state"; fi
   (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
   [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
   mkdir -p "$LOG_DIR"
