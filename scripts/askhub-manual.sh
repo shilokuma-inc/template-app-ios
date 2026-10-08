@@ -261,16 +261,19 @@ effective_permission_mode() {
 }
 
 # 確認の claude を、子プロセスごと止める。
-# TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する
+# TERM で止まらないプロセスが残っても wait が戻らなくならないよう、2 秒待って残っていれば KILL する。
+# プロセスグループを作る前（setpgrp の前）に中断されたときはグループがないので、PID にも送る
 stop_probe() {
   local pid="$1" grace=0
   [[ -n "$pid" ]] || return 0
   kill -TERM -- "-$pid" 2>/dev/null || true
+  kill -TERM "$pid" 2>/dev/null || true
   while kill -0 -- "-$pid" 2>/dev/null && (( grace < 20 )); do
     sleep 0.1
     grace=$(( grace + 1 ))
   done
   kill -KILL -- "-$pid" 2>/dev/null || true
+  kill -KILL "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
 }
 
