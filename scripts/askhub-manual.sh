@@ -229,16 +229,29 @@ BODY
 # claude を指定の権限モードで起動したとき、実際に効く権限モード（起動時の init イベントから読む）。
 # MDM や組織の管理設定で bypassPermissions が禁止されていると、エラーにならずに default で起動し、
 # 確認の要る操作（ファイルの編集・コマンド）がすべて黙って拒否されるので、起動の前に確かめる。
-# 制御用 worktree のループの Stop hook に捕まらないよう、一時ディレクトリで hook を止めて起動する。読めなければ空
+# 制御用 worktree のループの Stop hook に捕まらないよう、一時ディレクトリで hook を止めて起動する。
+# init の行が出たら（または ASKHUB_PROBE_TIMEOUT 秒（既定 60）たったら）、子プロセスごと止める
+# （固まっても launch を止めない。claude の子プロセスが出力を開いたまま残っても待たないよう、新しいプロセスグループで起動する）。読めなければ空
 effective_permission_mode() {
-  local mode="$1" dir
+  local mode="$1" dir pid ticks=0 found="" limit=$(( ${ASKHUB_PROBE_TIMEOUT:-60} * 10 ))
   dir=$(mktemp -d)
-  (cd "$dir" && "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" --settings '{"disableAllHooks":true}' \
-      --no-session-persistence --output-format stream-json --verbose --max-turns 1 "OK とだけ答えてください" \
-      </dev/null 2>/dev/null \
-    | grep -m 1 '"subtype":"init"' \
-    | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p') || true
+  (cd "$dir" && exec perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" \
+      --settings '{"disableAllHooks":true}' --no-session-persistence --output-format stream-json --verbose --max-turns 1 \
+      "OK とだけ答えてください" </dev/null >"$dir/out" 2>/dev/null) &
+  pid=$!
+  while (( ticks < limit )); do
+    found=$(grep -m 1 '"subtype":"init"' "$dir/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+    [[ -n "$found" ]] && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+    ticks=$(( ticks + 1 ))
+  done
+  # 終わる直前に書かれた init も拾う
+  [[ -n "$found" ]] || found=$(grep -m 1 '"subtype":"init"' "$dir/out" 2>/dev/null | sed -n -E 's/.*"permissionMode": *"([^"]*)".*/\1/p' || true)
+  kill -TERM -- "-$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
   rm -rf "$dir"
+  printf '%s' "$found"
 }
 
 # ループを起動する権限モード。bypassPermissions が使えなければ auto にする。どちらも使えなければ起動しない
