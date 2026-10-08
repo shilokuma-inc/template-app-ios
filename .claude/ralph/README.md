@@ -190,6 +190,7 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
 ```
 <owner/repo> で Discussion #N の epic を手動ループで回して（scripts/askhub-manual.sh を使う）
 <owner/repo> の Discussion #N の手動ループを再開して（scripts/askhub-manual.sh resume）
+<owner/repo> の Discussion #N の手動ループの最終 PR を作って（scripts/askhub-manual.sh final）
 ```
 
 指示を受けた Claude は、**`scripts/askhub-manual.sh` で次を行う**（ラベル・状態の書き出し・最終 PR の目印を手で行わない。抜けると AskHub に正しく出ない）:
@@ -206,7 +207,8 @@ GitHub で手で付けるときは、**最後の質問に回答する前に** `m
    書き込む Issue はオーケストレーターと同じ選び方で決める（信用する author が作った `loop-status` の Issue のうち、open で最も新しく更新されたもの。
    無ければ閉じたもののうち最も新しく更新されたものを開き直す。1 つも無ければ担当者のアカウントで作る）
 5. 回答がそろったら（AskHub に「回答がそろいました」が出る）、再開の指示を受けて `scripts/askhub-manual.sh resume`
-6. ループが終わったら、**制御用 worktree の外で** `scripts/askhub-manual.sh final`。ゴール元の目印つきの最終 PR（`epic-final`）を作る。
+6. ループが全タスクを終えたら（AskHub の「手動ループ」に「最終 PR の指示をコピー」が出る）、最終 PR の指示を受けて、
+   **制御用 worktree の外で** `scripts/askhub-manual.sh final`。ゴール元の目印つきの最終 PR（`epic-final`）を作る。
    マージは AskHub の「要対応」タブの「マージ待ち」から（マージするとゴール元の Discussion が閉じる）
 
 ask・判断ログ（`decision-log`）・実機確認（`needs-verify`）の書き方は自動のときと同じ（AskHub の受信箱でそのまま扱える）。
