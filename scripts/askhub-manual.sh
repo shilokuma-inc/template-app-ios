@@ -356,6 +356,9 @@ NEXT
     URL=$(gh pr create -R "$REPOSITORY" --base "$BASE_BRANCH" --head "$EPIC" --title "【FEAT】$EPIC を $BASE_BRANCH に取り込む" \
       --assignee @me --label epic-final --body "$BODY")
     echo "最終 PR を作りました: $URL"
+    if [[ "$BASE_BRANCH" != develop ]]; then
+      echo "注意: base が develop ではないため、マージしてもゴール元の Discussion は自動で閉じません（close-goal-discussion.yml は develop へのマージだけを見る）。マージ後に Discussion #$DISCUSSION を手で閉じてください" >&2
+    fi
     write_status true true
     ;;
 
