@@ -175,7 +175,7 @@ check_deny() {
     if jq --slurpfile template .claude/ralph/settings.deny.example.json \
       '.permissions.deny = ((.permissions.deny // []) + ($template[0].permissions.deny - (.permissions.deny // [])))' \
       "$settings" > "$merged" \
-      && jq -e '.permissions.deny | type == "array" and length > 0' "$merged" >/dev/null; then
+      && jq -e '.permissions.deny | type == "array" and length > 0 and all(.[]; type == "string")' "$merged" >/dev/null; then
       # mktemp は 0600 で作るので、置き換えても元の settings.json の権限が変わらないよう合わせる
       # （書き込みと検査の後に合わせる。元が読み取り専用でも、一時ファイルに書き込めるように）
       # 権限を読めない・合わせられないときは、権限が変わったまま置き換えないよう止める
