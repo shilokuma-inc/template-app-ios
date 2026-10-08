@@ -172,12 +172,13 @@ check_deny() {
     local merged
     merged=$(mktemp "$settings.XXXXXX") \
       || { echo "エラー: $settings の隣に一時ファイルを作れませんでした" >&2; exit 1; }
-    # mktemp は 0600 で作るので、置き換えても元の settings.json の権限が変わらないよう合わせる
-    chmod "$(stat -f '%Lp' "$settings" 2>/dev/null || stat -c '%a' "$settings")" "$merged" 2>/dev/null || true
     if jq --slurpfile template .claude/ralph/settings.deny.example.json \
       '.permissions.deny = ((.permissions.deny // []) + ($template[0].permissions.deny - (.permissions.deny // [])))' \
       "$settings" > "$merged" \
       && jq -e '.permissions.deny | type == "array" and length > 0' "$merged" >/dev/null; then
+      # mktemp は 0600 で作るので、置き換えても元の settings.json の権限が変わらないよう合わせる
+      # （書き込みと検査の後に合わせる。元が読み取り専用でも、一時ファイルに書き込めるように）
+      chmod "$(stat -f '%Lp' "$settings" 2>/dev/null || stat -c '%a' "$settings")" "$merged" 2>/dev/null || true
       mv "$merged" "$settings" \
         || { rm -f "$merged"; echo "エラー: $settings を置き換えられませんでした" >&2; exit 1; }
     else
