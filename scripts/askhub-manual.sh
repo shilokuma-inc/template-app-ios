@@ -193,6 +193,7 @@ BODY
   # 信用する author ごとに探す（信用外の author が loop-status の Issue を大量に作っても、件数の上限で取りこぼさない）
   local trusted author candidates=""
   trusted=$(trusted_authors)
+  [[ -n "$trusted" ]] || fail "信用する author を取得できません（gh auth status と、このリポジトリの権限を確認してください）"
   while IFS= read -r author; do
     [[ -n "$author" ]] || continue
     candidates+=$(gh issue list -R "$REPOSITORY" --label loop-status --state all --author "$author" --limit 1000 --json number,state,updatedAt \
