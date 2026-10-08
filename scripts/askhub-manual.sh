@@ -274,7 +274,7 @@ case "$COMMAND" in
       fail "制御用 worktree で Discussion #$PREVIOUS の手動ループが途中です。終わってから始めてください"
     fi
     remove_ready_label "$DISCUSSION_ID"
-    (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" >/dev/null)
+    (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" "$BASE_BRANCH" >/dev/null)
     rm -f "$STATE_FILE"
     state_set repository "$REPOSITORY"
     state_set discussion "$DISCUSSION"
@@ -319,7 +319,7 @@ NEXT
     [[ -n "$PROMISE" ]] || fail "完了語の記録がありません（launch で起動してください）"
     EPIC=$(state_get epic)
     # 片付け済みのスロットを作り直す（ralph-setup.sh は既存の worktree を再利用する）
-    (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" >/dev/null)
+    (cd "$MAIN" && scripts/ralph-setup.sh "$EPIC" "$BASE_BRANCH" >/dev/null)
     refresh_trusted_authors "$(trusted_authors)"
     launch_loop "$PROMISE"
     ;;
