@@ -356,6 +356,8 @@ NEXT
     EPIC=$(state_get epic)
     # status と同じ判定で状態を求め、goal のタスクが終わっているときだけ進める
     # 回答待ちの PR が残っていても作る（自動ループと同じ。回答待ちの PR は下で本文に載せる）
+    # goal が読めないと未完了のタスクを 0 件と数えてしまうので、先に拒否する
+    [[ -f "$GOAL" && -r "$GOAL" ]] || fail "goal がありません、または読み込めません: $GOAL"
     WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
     FINAL_STATE=$(compute_state true "$WAITING")
     case "$FINAL_STATE" in
