@@ -171,6 +171,10 @@ promise は完全一致でしか成立せず「詰まった」を表現できな
 担当 PC のオーケストレーターに任せず、別の PC などから手でループを回すときは、ゴール元の Discussion に
 ラベル `manual-loop` を付ける（ask-hub-apple の Discussion #273）。AskHub の回答画面で、最後の質問を
 「投稿したら、回答を確定してループを始める」の回し方「手動で回す」で投稿すると付く。GitHub で手で付けてもよい。
+**GitHub で手で付けるときは、最後の質問に回答する前に付ける。** 全問回答した時点で `manual-loop` が無いと、
+オーケストレーターが `ready-for-loop` を付けて自動で起動することがある。
+ラベル `manual-loop` は `ralph-setup.sh` が作る（AskHub も「手動で回す」で投稿するときに無ければ作る）。
+セットアップ前で無いときは、`gh label create manual-loop --color C5DEF5 --description 'この Discussion のループは手で回す（オーケストレーターは起動しない）'` で作る。
 **信用する author の Discussion に付いたときだけ効く。**
 
 `manual-loop` の付いた Discussion について、オーケストレーターは次のように動く:
