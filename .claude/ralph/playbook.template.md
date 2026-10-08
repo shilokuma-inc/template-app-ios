@@ -368,6 +368,9 @@ state ファイルに停止理由を明記したうえで `rm .claude/ralph-loop
 **判定の前に `pwd` を実行し、制御ディレクトリ（`{{WORKTREE_CTL}}`）に居ることを確かめる。** 違っていたら `cd` で戻る。
 スロットに居たままターンを終えると、Stop hook がループを見つけられずに止まる。
 
+- **手動ループのとき**（制御用 worktree に `.claude/askhub-manual.local.txt` がある）: 判定の前に `scripts/askhub-manual.sh status` を実行して
+  ループの状態を書き出す（10 分に 1 回までしか書かないので、毎周回呼んでよい）。promise を出す直前には `scripts/askhub-manual.sh status --stopping` を実行する。
+  最終 PR はループでは作らない（ループが終わった後、担当者の Claude Code が制御用 worktree の外で `scripts/askhub-manual.sh final` を実行する）
 - **全タスクが `[x]`（完了または保留）か `※回答待ち` 付き、作業中の in-flight がゼロ、
   かつ state の「回答待ち」表に `回答あり・スロット待ち` の行が無い**
   → `<promise>{{PROMISE}}</promise>` を出力。

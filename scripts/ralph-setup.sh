@@ -50,6 +50,7 @@ if command -v gh >/dev/null 2>&1; then
   done <<'LABELS'
 needs-answer|D93F0B|人間の回答を待っている質問がある
 ready-for-loop|0E8A16|Discussion の回答が確定し、ループを始めてよい
+manual-loop|C5DEF5|この Discussion のループは手で回す（オーケストレーターは起動しない）
 idea-request|5319E7|アプリから出した新機能の依頼
 decision-log|1D76DB|epic ごとの仮決め一覧（判断ログ）
 needs-verify|FBCA04|実機・実データでの確認が必要
