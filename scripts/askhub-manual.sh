@@ -229,13 +229,14 @@ BODY
 # claude を指定の権限モードで起動したとき、実際に効く権限モード（起動時の init イベントから読む）。
 # MDM や組織の管理設定で bypassPermissions が禁止されていると、エラーにならずに default で起動し、
 # 確認の要る操作（ファイルの編集・コマンド）がすべて黙って拒否されるので、起動の前に確かめる。
-# 制御用 worktree のループの Stop hook に捕まらないよう、一時ディレクトリで hook を止めて起動する。
+# 本番のループと同じプロジェクト設定（制御用 worktree の .claude/settings.json など）で判定するよう、制御用 worktree で起動する。
+# ループの Stop hook に捕まらないよう、hook を止めて起動し、ループの state ファイルを消した後に呼ぶ（launch_loop）。
 # init の行が出たら（または ASKHUB_PROBE_TIMEOUT 秒（既定 60）たったら）、子プロセスごと止める
 # （固まっても launch を止めない。claude の子プロセスが出力を開いたまま残っても待たないよう、新しいプロセスグループで起動する）。読めなければ空
 effective_permission_mode() {
   local mode="$1" dir pid ticks=0 found="" limit=$(( ${ASKHUB_PROBE_TIMEOUT:-60} * 10 ))
   dir=$(mktemp -d)
-  (cd "$dir" && exec perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" \
+  (cd "$CTL" && exec perl -e 'setpgrp(0, 0); exec @ARGV or exit 127' "${ASKHUB_CLAUDE:-claude}" -p --permission-mode "$mode" \
       --settings '{"disableAllHooks":true}' --no-session-persistence --output-format stream-json --verbose --max-turns 1 \
       "OK とだけ答えてください" </dev/null >"$dir/out" 2>/dev/null) &
   pid=$!
@@ -274,9 +275,10 @@ launch_loop() {
   local promise="$1"
   command -v "${ASKHUB_CLAUDE:-claude}" >/dev/null 2>&1 || fail "claude が見つかりません"
   loop_alive && fail "ループは既に動いています（PID $(cat "$PID_FILE")）。止めるには scripts/ralph-stop.sh"
+  [[ -f "$LOOP_STATE" ]] && rm -f "$LOOP_STATE"
+  # 権限モードは、ループの state ファイルが無いうちに確かめる（確認の起動がループの Stop hook に捕まらないように）
   local permission_mode
   permission_mode=$(loop_permission_mode)
-  [[ -f "$LOOP_STATE" ]] && rm -f "$LOOP_STATE"
   (cd "$CTL" && "$MAIN/scripts/ralph-start.sh" "$promise" >/dev/null)
   [[ -f "$LOOP_STATE" ]] || fail "state ファイルを作れませんでした: $LOOP_STATE"
   mkdir -p "$LOG_DIR"
