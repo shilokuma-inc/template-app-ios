@@ -152,7 +152,7 @@ write_status() {
   epic=$(state_get epic)
   runner=$(state_get runner)
   [[ -n "$discussion" && -n "$epic" && -n "$runner" ]] || fail "手動ループの記録がありません（先に start を実行してください）"
-  waiting=$(gh pr list -R "$REPOSITORY" --base "$epic" --label needs-answer --state open --json number --jq '.[].number' | sort -n | paste -sd, -)
+  waiting=$(gh pr list -R "$REPOSITORY" --base "$epic" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
   state=$(compute_state "$stopping" "$waiting")
   total=$(count_lines '^- \[[ x]\]' "$GOAL")
   completed=$(count_lines '^- \[x\]' "$GOAL")
@@ -356,7 +356,7 @@ NEXT
     EPIC=$(state_get epic)
     # status と同じ判定で状態を求め、goal のタスクが終わっているときだけ進める
     # 回答待ちの PR が残っていても作る（自動ループと同じ。回答待ちの PR は下で本文に載せる）
-    WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --json number --jq '.[].number' | sort -n | paste -sd, -)
+    WAITING=$(gh pr list -R "$REPOSITORY" --base "$EPIC" --label needs-answer --state open --limit 1000 --json number --jq '.[].number' | sort -n | paste -sd, -)
     FINAL_STATE=$(compute_state true "$WAITING")
     case "$FINAL_STATE" in
       completed | waiting-for-answer) ;;
