@@ -7,7 +7,7 @@ SwiftUI のプロジェクト一式と、ビルド・テスト・Archive・TestF
 
 ## Environment
 
-- Xcode 26.3
+- Xcode 26.6
 - iOS 17.0 以上
 - Swift 6（Swift 6 言語モード / Strict Concurrency）
 - SwiftUI / Swift Testing / XCTest（UI テスト）
