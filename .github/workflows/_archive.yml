@@ -12,7 +12,7 @@ on:
         description: maxim-lobanov/setup-xcode に渡す Xcode バージョン
         type: string
         # README の Environment と揃える。ランナー側の更新でビルドが変わらないよう固定する
-        default: '26.3'
+        default: '26.6'
       upload:
         description: Export した IPA を App Store Connect へアップロードするか
         type: boolean
