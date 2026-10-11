@@ -329,7 +329,7 @@ launch_loop() {
   )
   state_set log "$log"
   state_set permission_mode "$permission_mode"
-  echo "ループを起動しました（PID $(cat "$PID_FILE")、権限モード: $permission_mode、ログ: $log）"
+  echo "ループを起動しました（PID $(cat "$PID_FILE")、権限モード: ${permission_mode}、ログ: ${log}）"
   echo "進み具合を見るには: tail -f \"$log\""
   write_status false true
 }
@@ -357,7 +357,7 @@ case "$COMMAND" in
     [[ "$HEADER" != MISSING ]] || fail "Discussion #$DISCUSSION が見つかりません"
     IFS=$'\t' read -r DISCUSSION_ID CLOSED AUTHOR LABELS <<<"$HEADER"
     [[ "$CLOSED" == false ]] || fail "Discussion #$DISCUSSION は閉じています"
-    is_trusted "$AUTHOR" "$TRUSTED" || fail "Discussion #$DISCUSSION の作成者（@$AUTHOR）は、このリポジトリで信用する author ではありません"
+    is_trusted "$AUTHOR" "$TRUSTED" || fail "Discussion #$DISCUSSION の作成者（@${AUTHOR}）は、このリポジトリで信用する author ではありません"
     [[ ",$LABELS," == *",manual-loop,"* ]] || fail "Discussion #$DISCUSSION に manual-loop がありません（AskHub の回答画面で「手動で回す」を選んで投稿してください）"
     # 担当者は、信用する author が書いた担当のコメント（<!-- ask-hub:manual-assignee login="…" -->）のうち最後のもの
     ASSIGNEE=""
@@ -370,7 +370,7 @@ case "$COMMAND" in
       fail "Discussion #$DISCUSSION に担当のコメントがありません（AskHub の回答画面で担当者を選んで投稿してください）"
     fi
     if [[ "$(printf '%s' "$ASSIGNEE" | tr '[:upper:]' '[:lower:]')" != "$(printf '%s' "$ME" | tr '[:upper:]' '[:lower:]')" && "${ASKHUB_MANUAL_FORCE:-}" != 1 ]]; then
-      fail "この手動ループの担当者は @$ASSIGNEE です（あなたは @$ME）。担当を変えるときは、Discussion に担当のコメントを付け直してください"
+      fail "この手動ループの担当者は @$ASSIGNEE です（あなたは @${ME}）。担当を変えるときは、Discussion に担当のコメントを付け直してください"
     fi
     # 同じ Discussion でも、動いているループの記録（完了語など）を消さないように拒否する
     loop_alive && fail "制御用 worktree でループが動いています（PID $(cat "$PID_FILE")）。止めてから start を実行してください（止めるには scripts/ralph-stop.sh）"
@@ -391,7 +391,7 @@ case "$COMMAND" in
     state_set runner "$ME"
     write_status false true
     cat <<NEXT
-手動ループの準備ができました（$REPOSITORY / Discussion #$DISCUSSION / $EPIC / 担当 @$ME）。
+手動ループの準備ができました（$REPOSITORY / Discussion #$DISCUSSION / $EPIC / 担当 @${ME}）。
 制御用 worktree: $CTL
 
 次に行うこと（Claude Code）:
@@ -464,7 +464,7 @@ NEXT
     FINAL_STATE=$(compute_state true "$WAITING")
     case "$FINAL_STATE" in
       completed | waiting-for-answer) ;;
-      waiting-to-start) fail "goal に未完了のタスクが残っています（$GOAL）。scripts/askhub-manual.sh resume でループを再開してください" ;;
+      waiting-to-start) fail "goal に未完了のタスクが残っています（${GOAL}）。scripts/askhub-manual.sh resume でループを再開してください" ;;
       *) fail "ループの状態が「$(state_title "$FINAL_STATE")」のため、最終 PR を作れません" ;;
     esac
     # マージせずに閉じた PR は既存として扱わない（作り直せるように）。open かマージ済みがあれば作らない
