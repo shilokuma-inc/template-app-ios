@@ -12,10 +12,10 @@ reviews:
     enabled: true
     drafts: false
     # デフォルトブランチ (develop) 以外に向けた PR もレビューする。
-    # ralph-loop の PR は epic/** 宛に出るため、ここに入れないと
-    # ループの生成物が 1 本もレビューされないまま統合される。
+    # ralph-loop の子 PR（epic/** 宛て）は対象に入れない。レート制限が PR の作者単位で、
+    # 全リポジトリのループが 1 つの枠を取り合うため。子 PR は第三者としてのセルフレビューで確かめ、
+    # CodeRabbit は epic → develop の最終 PR でレビューする（.claude/ralph/README.md）。
     base_branches:
-      - "epic/.*"
       - "release/.*"
       - "main"
   path_filters:
