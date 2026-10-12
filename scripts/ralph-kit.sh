@@ -16,6 +16,10 @@
 #   RALPH_KIT_CACHE  取得した kit の置き場所（既定: ~/.cache/ralph-kit）
 #   RALPH_KIT_URL    kit の取得元（既定: https://github.com/shilokuma-inc/ralph-kit.git）
 #   RALPH_KIT_FETCH_INTERVAL  タグ・ブランチを取り直す間隔（秒。既定: 300）
+#   RALPH_KIT_LOCK_TIMEOUT    ほかのプロセスの取得を待つ上限（秒。既定: 120）。過ぎたら取得せずに手元の版を使う
+#
+# 取得した kit に入っている中継（shim/scripts/ralph-kit.sh）がこのファイルと違えば、処理をそちらに任せる。
+# 中継を直したときも、各リポジトリへの PR なしで届けるため（このファイルが使われるのは、最初の取得だけになる）
 set -euo pipefail
 
 # Git hook や wrapper から継承した経路変数が別のチェックアウトを指すことがある
@@ -26,13 +30,18 @@ fail() { echo "ralph-kit: $*" >&2; exit 1; }
 warn() { echo "ralph-kit: $*" >&2; }
 usage() { sed -n '4,6p' "$0" | sed 's/^# //' >&2; exit 64; }
 
-SCRIPTS_DIR=$(cd "$(dirname "$0")" && pwd -P)
+# kit の中継に任せたときは、任せた側（各リポジトリの scripts/）の場所を受け取る
+SCRIPTS_DIR="${RALPH_KIT_SCRIPTS_DIR:-$(cd "$(dirname "$0")" && pwd -P)}"
 CONF="$(dirname "$SCRIPTS_DIR")/.claude/ralph/kit.conf"
 URL="${RALPH_KIT_URL:-https://github.com/shilokuma-inc/ralph-kit.git}"
 CACHE="${RALPH_KIT_CACHE:-$HOME/.cache/ralph-kit}"
 # ループは周回ごとに status を呼ぶので、タグ・ブランチは毎回ではなく間隔をあけて取り直す
 FETCH_INTERVAL="${RALPH_KIT_FETCH_INTERVAL:-300}"
 [[ "$FETCH_INTERVAL" =~ ^[0-9]+$ ]] || fail "RALPH_KIT_FETCH_INTERVAL は 0 以上の整数で指定してください（指定: ${FETCH_INTERVAL}）"
+LOCK_TIMEOUT="${RALPH_KIT_LOCK_TIMEOUT:-120}"
+[[ "$LOCK_TIMEOUT" =~ ^[0-9]+$ ]] || fail "RALPH_KIT_LOCK_TIMEOUT は 0 以上の整数で指定してください（指定: ${LOCK_TIMEOUT}）"
+# 通信が止まった取得を打ち切る（ロックを持ったまま固まると、同じ Mac のほかのループも進めなくなる）。認証の入力も待たない
+GIT_NET=(env GIT_HTTP_LOW_SPEED_LIMIT=1000 GIT_HTTP_LOW_SPEED_TIME=30 GIT_TERMINAL_PROMPT=0)
 
 conf_ref() {
   [[ -f "$CONF" ]] || return 0
@@ -54,15 +63,27 @@ locate() {
   [[ "$REF" =~ ^[A-Za-z0-9._][A-Za-z0-9._/-]*$ ]] || fail "kit の版の指定が不正です: $REF"
   command -v git >/dev/null 2>&1 || fail "git が見つかりません"
   mkdir -p "$CACHE" || fail "kit の置き場所を作れません: $CACHE"
-  lock
-  fetch_and_extract
-  unlock
+  if lock; then
+    fetch_and_extract
+    unlock
+  else
+    # ほかのプロセスの取得が終わらないときは、取得せずに手元にある版で続ける
+    warn "kit の取得の順番待ちが ${LOCK_TIMEOUT} 秒を超えたので、手元にある版を使います（${LOCK} が残っていないか確かめてください）"
+    use_cached || fail "手元に kit の版 $REF がありません（${LOCK} が残っていないか確かめてください）"
+  fi
+}
+
+# 取得も展開もせずに、手元にある版を使う
+use_cached() {
+  SHA=$(git --git-dir="$CACHE/repo.git" rev-parse -q --verify "$REF^{commit}" 2>/dev/null) || return 1
+  KIT="$CACHE/$SHA"
+  [[ -f "$KIT/.ralph-kit-complete" ]]
 }
 
 # 同じ Mac で複数のループが同時に取得しても壊れないよう、取得と展開は 1 つずつ行う
 LOCK=""
 lock() {
-  local waited=0
+  local waited=0 limit=$((LOCK_TIMEOUT * 5))
   LOCK="$CACHE/.lock"
   trap 'exit 130' INT TERM
   until mkdir "$LOCK" 2>/dev/null; do
@@ -71,7 +92,7 @@ lock() {
       rmdir "$LOCK" 2>/dev/null || true
       continue
     fi
-    (( waited < 600 )) || fail "kit の取得の順番待ちが 2 分を超えました（${LOCK} が残っていないか確かめてください）"
+    (( waited < limit )) || return 1
     sleep 0.2
     waited=$((waited + 1))
   done
@@ -88,7 +109,7 @@ fetch_and_extract() {
   now=$(date +%s)
   if [[ ! -d "$mirror" ]]; then
     rm -rf "$mirror.tmp"
-    git clone --quiet --bare "$URL" "$mirror.tmp" || fail "kit を取得できません（${URL}）。ネットワークを確かめてください"
+    "${GIT_NET[@]}" git clone --quiet --bare "$URL" "$mirror.tmp" || fail "kit を取得できません（${URL}）。ネットワークを確かめてください"
     mv "$mirror.tmp" "$mirror"
     echo "$now" > "$stamp"
   fi
@@ -101,12 +122,12 @@ fetch_and_extract() {
     need=true
   fi
   if $need; then
-    if git --git-dir="$mirror" fetch --quiet --prune --force origin \
+    if ! "${GIT_NET[@]}" git --git-dir="$mirror" fetch --quiet --prune --force origin \
          '+refs/heads/*:refs/heads/*' '+refs/tags/*:refs/tags/*'; then
-      echo "$now" > "$stamp"
-    else
       warn "kit の更新を取得できませんでした。手元にある版を使います"
     fi
+    # 失敗しても時刻を残す（オフラインのとき、周回ごとに取得を試して待たせないよう、次も間隔をあける）
+    echo "$now" > "$stamp"
   fi
   SHA=$(git --git-dir="$mirror" rev-parse -q --verify "$REF^{commit}") \
     || fail "kit の版 $REF が見つかりません（.claude/ralph/kit.conf の ref を確かめてください）"
@@ -124,30 +145,42 @@ fetch_and_extract() {
   fi
 }
 
+# 取得した kit に入っている中継がこのファイルと違えば、そちらに任せる（任せた先では、もう一度は任せない）
+delegate() {
+  local newer="$KIT/shim/scripts/ralph-kit.sh"
+  [[ -z "${RALPH_KIT_DELEGATED:-}" && -f "$newer" ]] || return 0
+  cmp -s "$newer" "$0" && return 0
+  RALPH_KIT_DELEGATED=1 RALPH_KIT_SCRIPTS_DIR="$SCRIPTS_DIR" exec bash "$newer" "$@"
+}
+
 COMMAND="${1:-}"
-[[ $# -gt 0 ]] && shift
 case "$COMMAND" in
   run)
-    NAME="${1:-}"
-    [[ $# -gt 0 ]] && shift
-    case "$NAME" in
+    case "${2:-}" in
       ralph-setup | ralph-start | ralph-stop | askhub-manual) ;;
       *) usage ;;
     esac
-    locate
+    ;;
+  path | version) ;;
+  *) usage ;;
+esac
+locate
+delegate "$@"
+shift
+case "$COMMAND" in
+  run)
+    NAME="$1"
+    shift
     [[ -x "$KIT/bin/$NAME.sh" ]] || fail "kit（${REF}）に bin/$NAME.sh がありません"
+    # 子のプロセス（ループの claude など）から呼ぶ中継は、ここで渡す kit の場所を使う（任せた印は引き継がない）
+    unset RALPH_KIT_DELEGATED RALPH_KIT_SCRIPTS_DIR
     export RALPH_KIT_DIR="$KIT" RALPH_KIT_REF="$REF" RALPH_KIT_SHA="$SHA"
     exec "$KIT/bin/$NAME.sh" "$@"
     ;;
   path)
-    locate
     echo "$KIT"
     ;;
   version)
-    locate
     echo "$REF $SHA"
-    ;;
-  *)
-    usage
     ;;
 esac
