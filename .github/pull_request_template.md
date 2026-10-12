@@ -10,14 +10,10 @@
 <!-- Thank you for your contribution! -->
 
 <!-- スクリーンショットテンプレート
-<table>
-  <tr>
-    <th>Before</th>
-    <th>After</th>
-  </tr>
-  <tr>
-    <td><img width="320" alt="ファイル名" src="URL"></td>
-    <td><img width="320" alt="ファイル名" src="URL"></td>
-  </tr>
-</table>
+gh の --attach で添付するときは、画像をローカルのパスで書く（README の「PR 本文のスクリーンショット」）。
+--attach は HTML の <img> や <table> の中を書き換えないため、表は Markdown で書く
+
+| Before | After |
+| --- | --- |
+| ![Before](./before.png) | ![After](./after.png) |
 -->
