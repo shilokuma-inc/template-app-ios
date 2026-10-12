@@ -121,7 +121,6 @@ SKU は Bundle ID と同じ値にします。SKU はユーザーには見えな�
 | その他の作業ブランチ | ✅（Unit テストのみ） | | |
 | Pull Request の作成時（opened / reopened / ready_for_review） | ✅ | | |
 | Fork からの Pull Request | ✅ | | |
-| `assets/**`（PR 用スクリーンショット置き場） | | | |
 
 - Upload は Archive → IPA Export を含むため、`develop` / `release/**` では Archive を別途実行しません
 - Archive / Upload は Actions タブから手動でも実行できます（Run workflow）。作業ブランチを TestFlight で確認したいときは、Upload を手動実行してそのブランチを選びます
@@ -174,8 +173,7 @@ gh pr view <番号> --json body -q .body \
         ├── _archive.yml     # 共通処理: Archive → Export（→ Upload）（workflow_call）
         ├── build.yml        # 全ブランチの push / Fork からの PR
         ├── archive.yml      # main の push
-        ├── upload.yml       # develop / release/** の push
-        └── cleanup-assets-branch.yml # PR マージ時に assets/issue-<番号> ブランチを削除
+        └── upload.yml       # develop / release/** の push
 ```
 
 - プロジェクトはフォルダ同期グループ（Xcode 16 以降の形式）で管理しているため、ファイルの追加・削除で pbxproj は変わりません
