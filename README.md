@@ -146,8 +146,9 @@ UI の見た目が変わる変更では、Before / After のスクリーンシ�
 gh pr create --title "..." --body-file body.md --assignee @me \
   --attach ./before.png --attach ./after.png
 
-# 本文の画像を幅 300 の <img> に置き換える
-gh pr view <番号> --json body -q .body \
+# 本文の画像を幅 300 の <img> に置き換える（本文を取得できたときだけ更新する）
+body=$(gh pr view <番号> --json body -q .body) &&
+  printf '%s\n' "$body" \
   | perl -pe 's{!\[([^\]]*)\]\((https://github\.com/user-attachments/assets/[^)\s]+)\)}{<img src="$2" alt="$1" width="300">}g' \
   | gh pr edit <番号> --body-file -
 ```
