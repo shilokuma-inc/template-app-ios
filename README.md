@@ -111,6 +111,18 @@ App Store Connect でのアプリ作成だけは API で行えないため、Web
 
 SKU は Bundle ID と同じ値にします。SKU はユーザーには見えない社内用の ID で、後から変更できないため、迷わないようにルールを固定しています。
 
+#### TestFlight の内部テスター
+
+Upload ワークフローは、アップロードの前に TestFlight の内部テストグループ「Internal Testers」を作り、変数 `TESTFLIGHT_INTERNAL_TESTERS` のメールアドレスを内部テスターに追加します（[.github/scripts/ensure-internal-testers.rb](.github/scripts/ensure-internal-testers.rb)）。グループは「すべてのビルドへのアクセス」を有効にして作るため、以降のビルドは処理が終わりしだい自動で配信されます。2 回目以降の Upload では確認だけで何もしません。
+
+| 変数 | 内容 |
+|---|---|
+| `TESTFLIGHT_INTERNAL_TESTERS` | 内部テスターにするメールアドレス。複数のときはカンマ区切り。Organization の変数に登録しておくと、テンプレートから作ったリポジトリすべてで使われます。空なら何もしません |
+
+- 内部テスターになれるのは App Store Connect のユーザー（「ユーザとアクセス」に登録されているメンバー）だけです
+- テスターの追加に失敗してもアップロードは止めません。失敗したメールアドレスは Job Summary に表示されます
+- グループの作成とテスターの追加には、API Key が App Manager 以上の権限である必要があります
+
 ### 6. ブランチ運用と CI
 
 | ブランチ | Build（ビルド + テスト + SwiftLint） | Archive（IPA Export） | Upload（App Store Connect） |
