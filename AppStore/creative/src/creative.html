@@ -1,0 +1,134 @@
+<!doctype html>
+<!--
+  App Store のクリエイティブアセット（プロダクトページのヘッダー / 検索結果）の元。
+  Tools/render_creative_assets.sh が Chrome で開いて実寸で書き出す。直接開くときは
+  creative.html?type=header&lang=ja&screens=01_home のように指定する
+  （同じフォルダの screens/<言語>/ に 6.9 inch のスクリーンショット、icon.png にアプリアイコンが要る）。
+
+  アプリを作ったら、:root の色と copy の文言（TODO:）をアプリに合わせて書き換える。
+  TODO: が残っているあいだは Tools/upload_creative_assets.py が反映を止める。
+
+  方針（https://developer.apple.com/app-store/asset-best-practices/）
+  - ヘッダー（21:9）: 初めて来た人向けに、アプリのいちばんの価値を 1 つだけ伝える。
+    端末によって左右が切れるので、文言と端末は中央に寄せる。
+  - 検索結果（3:2）: 何をするアプリかが一目でわかるよう、実際の画面と主な機能を見せる。
+  - 他社のロゴ・価格・URL・受賞歴は入れない。文言は短く、言語ごとに訳す。
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  /* TODO: アプリのアイコンやテーマに合わせた色にする */
+  :root {
+    --background: #0b1026;
+    --background-2: #1b2470;
+    --highlight: #ffd98a;
+    --accent: #5b6cff;
+    --text: #ffffff;
+    --text-2: rgba(255, 255, 255, 0.76);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: var(--background);
+    color: var(--text);
+    font-family: "Hiragino Sans", "SF Pro Display", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-lang="en"] { font-family: "SF Pro Display", system-ui, "Hiragino Sans", sans-serif; }
+
+  .canvas { position: relative; width: 100vw; height: 100vh; overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 70% at 50% 100%, color-mix(in srgb, var(--accent) 45%, transparent), transparent 70%),
+      radial-gradient(ellipse 90% 80% at 50% 0%, var(--background-2), var(--background) 75%); }
+
+  /* box-shadow の大きなぼかしは Chrome で四角い継ぎ目が出るので、光はグラデーションで描く */
+  .glow { position: absolute; border-radius: 50%;
+    background: radial-gradient(circle, color-mix(in srgb, var(--highlight) 32%, transparent) 0%, transparent 70%); }
+
+  .phone { position: absolute; border-radius: 9.5%/4.4%; background: #0c0d10; padding: 1.6%;
+    box-shadow: 0 0 0 4px #3a3d46, 0 60px 140px rgba(0, 0, 0, 0.6); }
+  .phone img { display: block; width: 100%; border-radius: 8.4%/3.9%; }
+
+  .headline { position: absolute; left: 0; right: 0; text-align: center; font-weight: 800; letter-spacing: -0.01em; }
+  .headline em, .copy .title em { font-style: normal; color: var(--highlight); }
+  .sub { position: absolute; left: 0; right: 0; text-align: center; color: var(--text-2); font-weight: 500; }
+
+  .copy { position: absolute; }
+  .copy .title { font-weight: 800; line-height: 1.18; letter-spacing: -0.01em; }
+  .chips { display: flex; flex-direction: column; gap: 0.55em; }
+  .chip { display: inline-flex; align-items: center; gap: 0.6em; align-self: flex-start;
+    padding: 0.45em 0.95em 0.5em 0.7em; border-radius: 999px; font-weight: 700;
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 60%, white 10%); }
+  .chip i { font-style: normal; display: grid; place-items: center; width: 1.5em; height: 1.5em; border-radius: 50%;
+    background: var(--accent); font-size: 0.8em; }
+  .brand { position: absolute; display: flex; align-items: center; gap: 0.6em; font-weight: 800; color: var(--highlight); }
+  .brand img { height: 1.9em; border-radius: 22%; }
+</style>
+</head>
+<body>
+<div class="canvas" id="canvas"></div>
+<script>
+  const params = new URLSearchParams(location.search);
+  const type = params.get("type") || "header";
+  const lang = params.get("lang") || "ja";
+  const appName = params.get("name") || "App";
+  // 6.9 inch のスクリーンショットのファイル名（拡張子なし）。先頭が真ん中の端末に載る
+  const screens = (params.get("screens") || "").split(",").filter(Boolean);
+  document.body.dataset.lang = lang;
+
+  // TODO: アプリに合わせて書き換える。<em> で囲んだところが強調色になる
+  const copy = {
+    ja: {
+      header: { title: "TODO: アプリの<em>いちばんの価値</em>をひとことで。", sub: "TODO: それを支える一文。" },
+      search: { title: "TODO: 何ができるかを<br><em>一目で</em>。", chips: ["TODO: 主な機能 1", "TODO: 主な機能 2", "TODO: 主な機能 3"] },
+    },
+    en: {
+      header: { title: "TODO: Your app's <em>best value</em> in one line.", sub: "TODO: One sentence that backs it up." },
+      search: { title: "TODO: What it does,<br><em>at a glance</em>.", chips: ["TODO: Key feature 1", "TODO: Key feature 2", "TODO: Key feature 3"] },
+    },
+  }[lang];
+  // 文言の無い言語は、背景だけの画像を書き出さないようここで止める（render_creative_assets.sh でも先に確かめる）
+  if (!copy || screens.length === 0) {
+    document.body.innerHTML = `<h1 style="color:red;font-size:200px">No copy or screens for "${lang}"</h1>`;
+    throw new Error(`creative.html に ${lang} の文言か画面がありません`);
+  }
+
+  const canvas = document.getElementById("canvas");
+  const W = innerWidth;
+  const add = (html) => { canvas.insertAdjacentHTML("beforeend", html); return canvas.lastElementChild; };
+  // 画面が足りないときは、ある画面を繰り返して使う
+  const screen = (index) => screens[index % screens.length];
+  const phone = (index, x, y, width, rotate = 0, z = 1) => add(
+    `<div class="phone" style="left:${x - width / 2}px;top:${y}px;width:${width}px;transform:rotate(${rotate}deg);z-index:${z}">` +
+    `<img src="screens/${lang}/${screen(index)}.png"></div>`);
+  const glow = (size, x, y) => add(`<div class="glow" style="width:${size}px;height:${size}px;left:${x - size / 2}px;top:${y - size / 2}px"></div>`);
+
+  if (type === "header") {
+    // 21:9（3840x1646）。中央に寄せる（左右は端末によって切れる）
+    glow(2200, W / 2, 1300);
+    const title = add(`<div class="headline" style="top:150px;font-size:128px">${copy.header.title}</div>`);
+    add(`<div class="sub" style="top:${150 + title.offsetHeight + 34}px;font-size:58px">${copy.header.sub}</div>`);
+    if (screens.length > 1) {
+      phone(1, W / 2 - 700, 690, 560, -7, 1);
+      phone(2, W / 2 + 700, 690, 560, 7, 1);
+    }
+    phone(0, W / 2, 560, 640, 0, 2);
+  } else {
+    // 3:2（3840x2560）。左に何のアプリかと主な機能、右に実際の画面
+    glow(2600, W - 1000, 1400);
+    add(`<div class="brand" style="left:250px;top:200px;font-size:86px"><img src="icon.png">${appName}</div>`);
+    add(`<div class="copy" style="left:250px;top:470px;width:1700px;font-size:150px">` +
+        `<div class="title">${copy.search.title}</div>` +
+        `<div class="chips" style="font-size:78px;margin-top:110px">` +
+        copy.search.chips.map((c, i) => `<div class="chip"><i>${i + 1}</i>${c}</div>`).join("") +
+        `</div></div>`);
+    if (screens.length > 1) {
+      phone(1, W - 1700, 520, 860, -6, 1);
+    }
+    phone(0, W - 900, 360, 980, 4, 2);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "_comment": [
+    "App Store の英語（en-US）の説明文など。上限: description 4000 字 / keywords 合計 100 字（カンマ込み）/ promotionalText 170 字 / whatsNew 4000 字。",
+    "アプリ名とカテゴリ名はもともと検索対象なので keywords に入れなくてよい。",
+    "promotionalText は省略できる（省略すると App Store Connect 側の値をそのまま残す）。",
+    "whatsNew は「このバージョンの最新情報」。{\"version\": \"1.1.0\", \"text\": \"…\"} の形で書き、version が反映先のバージョンと一致するときだけ書き込む。",
+    "最初のバージョン（1.0.0）には最新情報の欄が無いので、2 つ目のバージョンから足す。",
+    "TODO: テンプレートの仮の文言。アプリを作ったら書き換える（Metadata/App Store は既定で dry-run）。"
+  ],
+  "promotionalText": "TODO: One line about why people will love this app (up to 170 characters).",
+  "description": "TODO: App description. What the app does, its key features, and how to get started.\n\n■ Key features\n• Feature 1\n• Feature 2\n• Feature 3",
+  "keywords": [
+    "TODO: keyword"
+  ]
+}

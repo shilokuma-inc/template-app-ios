@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "App Store 用スクリーンショットの撮影設定。",
+    "scenes:       撮る画面。この順が App Store の並び順になる（ファイル名の番号もこの順）。",
+    "              scene は起動引数 -screenshot-scene に渡す値で、ScreenshotDemo.Scene の rawValue と一致させる。",
+    "              App Store Connect の上限は 1 言語・1 表示サイズにつき 10 枚。",
+    "displayTypes: App Store Connect の表示サイズ。devices は上から順に、ランナーに入っている機種を使う。",
+    "              sizes は受け付ける寸法（先頭が撮る画面の寸法。iPhone Duo のように画面が 2 つある機種で撮る画面を選ぶのに使う）。",
+    "              runsOn / xcodeVersion は撮影するジョブの runs-on と Xcode（省略すると macos-latest / 26.6）。",
+    "              iPhone Duo は Xcode 27.1 と iOS 27.1 のランタイムが要るので、xcode-27 のランナーで撮る。",
+    "              deriveFrom を書いた表示サイズは撮らずに、その表示サイズを縮めて作る（ubuntu で動くので macOS の枠を使わない）。",
+    "              6.3 inch（1206x2622）は 6.9 inch（1320x2868）と縦横比がほぼ同じなので縮めて作る。"
+  ],
+  "scenes": [
+    { "file": "01_home", "scene": "home" }
+  ],
+  "displayTypes": {
+    "APP_IPHONE_67": {
+      "label": "iPhone 6.9 inch",
+      "devices": ["iPhone 17 Pro Max", "iPhone 16 Pro Max"],
+      "sizes": ["1320x2868", "1290x2796"],
+      "runsOn": "macos-latest",
+      "xcodeVersion": "26.6"
+    },
+    "APP_IPHONE_61": {
+      "label": "iPhone 6.3 inch",
+      "deriveFrom": "APP_IPHONE_67",
+      "sizes": ["1206x2622"]
+    },
+    "APP_IPAD_PRO_3GEN_129": {
+      "label": "iPad 13 inch",
+      "devices": ["iPad Pro 13-inch (M5)", "iPad Pro 13-inch (M4)"],
+      "sizes": ["2064x2752", "2048x2732"],
+      "runsOn": "macos-latest",
+      "xcodeVersion": "26.6"
+    },
+    "APP_IPHONE_DUO": {
+      "label": "iPhone Duo",
+      "devices": ["iPhone Duo"],
+      "sizes": ["1398x2034"],
+      "runsOn": "xcode-27",
+      "xcodeVersion": "27.1"
+    }
+  }
+}

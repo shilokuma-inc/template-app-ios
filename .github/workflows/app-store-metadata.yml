@@ -1,0 +1,113 @@
+name: Metadata/App Store
+
+# App Store の説明文・キーワード・プロモーションテキスト・最新情報・URL を App Store Connect に反映する。手動実行のみ。
+#
+# 元ネタは AppStore/metadata/<言語>.json と shared.json。欠損と文字数超過は
+# Verify/App Store metadata が PR の時点で落とすので、ここまで来たものは通る前提。
+# 最新情報（whatsNew）は、JSON の whatsNew.version が反映先のバージョンと一致するときだけ書き込む。
+# テンプレートの仮の文言（TODO:）が残っているあいだは、dry-run でも止まる。
+#
+# 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
+# dry_run にすると、App Store Connect の現在値との差分だけを出して何も書き込まない。
+
+on:
+  workflow_dispatch:
+    inputs:
+      languages:
+        description: '反映する言語（カンマ区切り）。空なら languages.json の全言語'
+        required: false
+        default: ''
+      app_version:
+        description: '反映先のバージョン。空なら編集できるバージョンを自動で選ぶ'
+        required: false
+        default: ''
+      missing_locales:
+        description: 'App Store Connect にその言語が無いときの扱い'
+        type: choice
+        options:
+          - fail
+          - skip
+          - create
+        default: fail
+      dry_run:
+        description: '書き込まず、現在値との差分だけ出す'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  metadata:
+    name: upload
+    # App Store Connect にアプリが無いリポジトリ（テンプレート自身など）は ENABLE_DELIVERY=false でスキップする
+    if: vars.ENABLE_DELIVERY != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify metadata
+        env:
+          LANGUAGES: ${{ inputs.languages }}
+        run: python3 Tools/upload_metadata.py --check --languages "$LANGUAGES"
+
+      - name: Create Private Key
+        # Secrets はシェル展開ではなく env 経由で渡す
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey.p8"
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
+          LANGUAGES: ${{ inputs.languages }}
+          APP_VERSION: ${{ inputs.app_version }}
+          MISSING_LOCALES: ${{ inputs.missing_locales }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --disable-pip-version-check pyjwt cryptography
+
+          options=(--missing-locales "$MISSING_LOCALES")
+          if [ -n "$LANGUAGES" ]; then
+            options+=(--languages "$LANGUAGES")
+          fi
+          if [ -n "$APP_VERSION" ]; then
+            options+=(--app-version "$APP_VERSION")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            options+=(--dry-run)
+          fi
+
+          # Bundle ID は Configs/Project.xcconfig から読む（ワークフローに書き写すと二重管理になるため）
+          .venv/bin/python -u Tools/upload_metadata.py "${options[@]}" | tee "$RUNNER_TEMP/upload.log"
+
+      - name: Summary
+        if: always()
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## App Store のメタデータ"
+            echo
+            echo "- 反映: $([ "$DRY_RUN" = "true" ] && echo "しない（dry-run）" || echo "する")"
+            echo
+            if [ -f "$RUNNER_TEMP/upload.log" ]; then
+              echo '```diff'
+              cat "$RUNNER_TEMP/upload.log"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

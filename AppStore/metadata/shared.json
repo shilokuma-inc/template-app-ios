@@ -1,0 +1,9 @@
+{
+  "_comment": [
+    "言語によらず同じ値を使う App Store のメタデータ。",
+    "supportUrl は Apple の審査で実際に開かれるので、必ず到達できる URL にすること（アプリの「お問い合わせ」と同じ窓口）。",
+    "marketingUrl は任意。消すと App Store Connect 側の値をそのまま残す。"
+  ],
+  "supportUrl": "TODO: https://（アプリのお問い合わせ窓口の URL）",
+  "marketingUrl": "TODO: https://（アプリの紹介ページの URL。不要なら項目ごと消す）"
+}

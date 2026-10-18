@@ -1,0 +1,14 @@
+{
+  "_comment": [
+    "App Store のクリエイティブアセット（iOS 27 以降の App Store に出る）の置き場所と画像。",
+    "画像は AppStore/creative/<言語>/<file>。元の HTML は AppStore/creative/src/creative.html、書き出しは Tools/render_creative_assets.sh。",
+    "iOS 27 / iPadOS 27 以降の App Store に出る。iOS / iPadOS のアプリだけが対象（macOS のアプリには無い）。",
+    "placementType: App Asset Library の置き場所。グループ（iPhone / iPad など）は画像の寸法から参照データで決まる。",
+    "寸法: ヘッダーは 21:9（3840x1646）、検索結果は 3:2（3840x2560）。どちらも透過なし。",
+    "仕様: https://developer.apple.com/help/app-store-connect/reference/app-information/creative-assets-specifications"
+  ],
+  "assets": [
+    { "placementType": "PRODUCT_PAGE_HEADER_ASSET", "file": "header.png", "referenceName": "Product page header" },
+    { "placementType": "APP_STORE_SEARCH_RESULTS_ASSET", "file": "search_results.png", "referenceName": "Search results" }
+  ]
+}
