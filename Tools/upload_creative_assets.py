@@ -194,7 +194,8 @@ class AssetLibrary:
             state = attributes.get("state")
             if state == "FAILED":
                 raise SystemExit(f"{path.name} の処理に失敗しました: {attributes.get('stateDetails')}")
-            if state not in ("AWAITING_UPLOAD", "UPLOAD_COMPLETE"):
+            # 処理が終わると PREPARE_FOR_SUBMISSION になり、照合した仕様（specId）が入る
+            if state == "PREPARE_FOR_SUBMISSION" and attributes.get("specId"):
                 return {"id": image_id, **attributes}
             if time.time() > deadline:
                 raise SystemExit(f"{path.name} の処理が {PROCESSING_TIMEOUT} 秒で終わりませんでした（{state}）")
@@ -253,7 +254,8 @@ def main() -> int:
 
     # テンプレートの仮の文言（TODO:）のまま書き出した画像は反映しない
     source = ROOT / "AppStore" / "creative" / "src" / "creative.html"
-    if not args.ref_data and source.is_file() and "TODO:" in source.read_text(encoding="utf-8"):
+    # 説明のコメントにも TODO: と書いてあるので、仮の文言（"TODO: … の形の文字列）だけを見る
+    if not args.ref_data and source.is_file() and '"TODO:' in source.read_text(encoding="utf-8"):
         raise SystemExit(f"{source.relative_to(ROOT)} に TODO: が残っています。文言を書き換えて書き出し直してください")
 
     # 画像が揃っているかは API を叩く前に確かめる
@@ -290,10 +292,12 @@ def main() -> int:
         print("--dry-run: App Store Connect には何も書き込みません")
 
     localizations = client.localizations(version["id"])
+    # 途中の言語で止まって一部の言語だけ差し替わらないよう、書き込む前に全言語ぶん確かめる
+    missing_locales = [language.store_locale for language in targets if language.store_locale not in localizations]
+    if missing_locales:
+        raise SystemExit(f"App Store Connect の {version['attributes']['versionString']} に無い言語: {', '.join(missing_locales)}")
     for language in targets:
-        localization_id = localizations.get(language.store_locale)
-        if localization_id is None:
-            raise SystemExit(f"App Store Connect に {language.store_locale} の言語がありません")
+        localization_id = localizations[language.store_locale]
         print(f"  {language.language} → {language.store_locale}")
 
         for asset in assets:

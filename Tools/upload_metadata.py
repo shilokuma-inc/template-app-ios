@@ -27,6 +27,7 @@ import difflib
 import json
 import os
 import sys
+import urllib.parse
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -57,8 +58,10 @@ def load_shared(directory: Path) -> tuple[dict[str, str], list[str]]:
     for key, required in (("supportUrl", True), ("marketingUrl", False)):
         value = raw.get(key)
         if isinstance(value, str) and value.strip():
-            if not value.startswith("https://"):
-                problems.append(f"{path}: {key} は https:// で始まる URL にしてください")
+            # テンプレートの仮の値（TODO:）は形を問わず、反映の前の TODO: の検査で止める
+            parsed = urllib.parse.urlparse(value)
+            if "TODO:" not in value and not (parsed.scheme == "https" and parsed.hostname):
+                problems.append(f"{path}: {key} は https:// で始まる URL にしてください（ホスト名も要る）")
             attributes[key] = value
         elif required:
             problems.append(f"{path}: {key} がありません")

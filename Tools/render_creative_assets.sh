@@ -31,8 +31,8 @@ if [ -z "$APP_ICON" ] || [ ! -f "$APP_ICON" ]; then
     echo "アプリアイコンが見つかりません。AppStore/app.json の appIcon を確かめてください: ${APP_ICON:-（未設定）}" >&2
     exit 1
 fi
-if grep -q "TODO:" "$SOURCE"; then
-    echo "注意: $SOURCE に TODO: が残っています（このままでは App Store Connect に反映できません）" >&2
+if grep -q '"TODO:' "$SOURCE"; then
+    echo "注意: $SOURCE に仮の文言（\"TODO: …）が残っています（このままでは App Store Connect に反映できません）" >&2
 fi
 
 WORK="$(mktemp -d)"
@@ -60,6 +60,13 @@ while IFS=$'\t' read -r -u 3 language _ _ _; do
         echo "$SCREENSHOTS/$language がありません。先に Tools/capture_screenshots.sh APP_IPHONE_67 で撮ってください。" >&2
         exit 1
     fi
+    # 画像が欠けていると、Chrome はリンク切れのまま実寸で書き出してしまう（寸法の検査では気づけない）
+    for screen in ${SCREENS//,/ }; do
+        if [ ! -f "$SCREENSHOTS/$language/$screen.png" ]; then
+            echo "$SCREENSHOTS/$language/$screen.png がありません。screenshots.json の scenes を全部撮ってください。" >&2
+            exit 1
+        fi
+    done
     mkdir -p "$WORK/screens/$language" "$OUTPUT_DIR/$language"
     cp "$SCREENSHOTS/$language"/*.png "$WORK/screens/$language/"
 
