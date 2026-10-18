@@ -119,6 +119,20 @@ jobs:
           APP_NAME="$PROJECT_NAME" \
             ruby .github/scripts/check-app-store-app.rb
 
+      - name: Set up TestFlight internal testers
+        # 内部テストグループ（すべてのビルドを自動配信）を用意し、変数 TESTFLIGHT_INTERNAL_TESTERS のメールアドレスを内部テスターに入れる。
+        # アップロードより前に済ませておくと、このあとのビルドも処理が終わりしだい配信される。2 回目以降は確認だけで何もしない。
+        # テスターの設定に失敗してもアップロードは止めない（Job Summary と注釈で知らせる）
+        if: ${{ inputs.upload }}
+        continue-on-error: true
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          TESTERS: ${{ vars.TESTFLIGHT_INTERNAL_TESTERS }}
+        run: |
+          BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$RUNNER_TEMP/build.xcarchive/Info.plist") \
+            ruby .github/scripts/ensure-internal-testers.rb
+
       - name: Upload to App Store Connect
         # ビルド番号は Xcode に採番させる（manageAppVersionAndBuildNumber）。App Store Connect 上の最新ビルド番号を見て
         # 自動で増やすので、xcconfig の CURRENT_PROJECT_VERSION を手で上げる必要はない。
