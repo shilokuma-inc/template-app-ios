@@ -1,0 +1,97 @@
+name: Creative assets/App Store
+
+# プロダクトページのヘッダーと検索結果のクリエイティブアセット（iOS 27 / iPadOS 27 以降の App Store に出る）を
+# App Store Connect の App Asset Library に上げ、編集できるバージョンに配置する。手動実行のみ。
+# https://developer.apple.com/app-store/asset-best-practices/
+#
+# 置き場所と画像は AppStore/creative_assets.json と AppStore/creative/<言語>/。
+# 画像は手元で Tools/render_creative_assets.sh を使って書き出し、コミットしておく（ここでは描かないので macOS は要らない）。
+# 置き場所のグループと画像の仕様は決め打ちせず、App Asset Library の参照データから引く（mode: ref-data で見られる）。
+# 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'upload: 反映する / dry-run: やることだけ出す / ref-data: 置き場所と画像の仕様を出す'
+        type: choice
+        options:
+          - upload
+          - dry-run
+          - ref-data
+        default: dry-run
+      languages:
+        description: '反映する言語（カンマ区切り）。空なら languages.json の全言語'
+        required: false
+        default: ''
+      app_version:
+        description: '反映先のバージョン。空なら編集できるバージョンを自動で選ぶ'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  creative-assets:
+    name: ${{ inputs.mode }}
+    # App Store Connect にアプリが無いリポジトリ（テンプレート自身など）は ENABLE_DELIVERY=false でスキップする
+    if: vars.ENABLE_DELIVERY != 'false'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Create Private Key
+        # Secrets はシェル展開ではなく env 経由で渡す
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey.p8"
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
+          MODE: ${{ inputs.mode }}
+          LANGUAGES: ${{ inputs.languages }}
+          APP_VERSION: ${{ inputs.app_version }}
+        run: |
+          set -euo pipefail
+          # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --disable-pip-version-check pyjwt cryptography
+
+          options=()
+          case "$MODE" in
+            dry-run) options+=(--dry-run) ;;
+            ref-data) options+=(--ref-data) ;;
+          esac
+          if [ -n "$LANGUAGES" ]; then
+            options+=(--languages "$LANGUAGES")
+          fi
+          if [ -n "$APP_VERSION" ]; then
+            options+=(--app-version "$APP_VERSION")
+          fi
+
+          .venv/bin/python -u Tools/upload_creative_assets.py ${options[@]+"${options[@]}"} | tee "$RUNNER_TEMP/upload.log"
+
+      - name: Summary
+        if: always()
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          {
+            echo "## クリエイティブアセット（${MODE}）"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/upload.log" 2>/dev/null || echo "（出力なし）"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

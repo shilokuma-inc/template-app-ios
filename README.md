@@ -153,6 +153,41 @@ body=$(gh pr view <番号> --json body -q .body) &&
   | gh pr edit <番号> --body-file -
 ```
 
+### 8. App Store の掲載情報（スクリーンショット・説明文・ヘッダー）
+
+App Store のプロダクトページに載せるものは、`AppStore/` の JSON を元ネタにして、手動実行のワークフローで App Store Connect に反映します。
+反映先は「編集できる状態のバージョン」だけで、審査中・配信済みのバージョンには触りません。
+どのワークフローも、リポジトリ変数 `ENABLE_DELIVERY=false` のリポジトリ（テンプレート自身など）では反映しません。
+
+| ワークフロー | 反映するもの | 元ネタ | ランナー |
+|---|---|---|---|
+| `Screenshots/App Store` | スクリーンショット（iPhone 6.9 inch / 6.3 inch / iPad 13 inch / iPhone Duo × 各言語） | `AppStore/screenshots.json` / `AppStore/languages.json` / `AppStore/app.json` | 撮影だけ macOS、縮小と反映は ubuntu |
+| `Metadata/App Store` | 説明文・キーワード・プロモーションテキスト・最新情報・URL（既定は dry-run） | `AppStore/metadata/*.json` | ubuntu |
+| `Creative assets/App Store` | プロダクトページのヘッダーと検索結果のクリエイティブアセット（既定は dry-run） | `AppStore/creative_assets.json` / `AppStore/creative/<言語>/` | ubuntu |
+| `Verify/App Store metadata` | PR で、文字数の上限・撮影設定・撮影モードの Scene との対応を検査する | `AppStore/**` | ubuntu |
+
+**スクリーンショット**
+
+- 撮影はアプリの撮影モード（[IOSTemplateApp/Screenshot/ScreenshotDemo.swift](IOSTemplateApp/Screenshot/ScreenshotDemo.swift)）で行います。`Tools/capture_screenshots.sh` が `-screenshot-demo -screenshot-scene <名前>` と言語を起動引数で渡し、アプリはデモデータで目的の画面を開きます
+- 画面を足すときは、`ScreenshotDemo.Scene` に case を足し、`IOSTemplateApp.swift` の `rootView` で開く画面を返し、`AppStore/screenshots.json` の `scenes` に同じ名前を足します（1 表示サイズにつき 10 枚まで）
+- 撮るのはリリースのときだけです。`release/**` ブランチを選んで手動実行します（それ以外のブランチでは止まります）
+- macOS ランナーの枠を開発のビルドと取り合わないよう、撮影は 1 本ずつ流します。6.3 inch（`deriveFrom`）は撮らずに 6.9 inch を ubuntu で縮めて作り、App Store Connect への反映も ubuntu で行います
+- iPhone Duo は Xcode 27.1 と iOS 27.1 のランタイムが要るので、`xcode-27` のランナーで撮ります（`screenshots.json` の `runsOn` / `xcodeVersion`）
+- 手元で撮るなら `Tools/capture_screenshots.sh APP_IPHONE_67 ja`（出力は `build/screenshots/`）
+
+**説明文・最新情報**
+
+- `AppStore/metadata/<言語>.json` と `shared.json` に書きます。テンプレートの仮の文言（`TODO:`）が残っているあいだは反映できません
+- 「このバージョンの最新情報」は `whatsNew` に `{"version": "1.1.0", "text": "…"}` の形で書きます。`version` が反映先のバージョンと一致するときだけ書き込むので、リリースごとに両方を書き換えます（最初のバージョンには最新情報の欄がありません）
+
+**プロダクトページのヘッダーと検索結果**（[App Store asset best practices](https://developer.apple.com/app-store/asset-best-practices/)）
+
+- iOS 27 / iPadOS 27 以降の App Store では、スクリーンショットとは別に、プロダクトページのヘッダー（21:9、3840x1646）と検索結果（3:2、3840x2560）に画像を載せられます
+- 元は [AppStore/creative/src/creative.html](AppStore/creative/src/creative.html)。色と文言（`TODO:`）をアプリに合わせて書き換え、6.9 inch のスクリーンショットを撮ってから `Tools/render_creative_assets.sh build/screenshots/APP_IPHONE_67` で書き出し（Google Chrome を使います）、画像もコミットします
+- ヘッダーは初めて来た人にアプリのいちばんの価値を 1 つだけ、検索結果は何をするアプリかを実際の画面と一緒に伝えます。端末によって左右が切れるので、大事なものは中央に寄せます。他社のロゴ・価格・URL・受賞歴は入れません
+- `Creative assets/App Store` を `ref-data` → `dry-run` → `upload` の順に流して反映します。置き場所のグループと画像の仕様は、App Asset Library の参照データから引きます
+- 反映したら、App Store Connect のプレビューで iPhone / iPad の見え方を確かめてから審査に出します
+
 ## 構成
 
 ```
@@ -162,6 +197,8 @@ body=$(gh pr view <番号> --json body -q .body) &&
 ├── IOSTemplateAppTests/     # Unit テスト（Swift Testing）
 ├── IOSTemplateAppUITests/   # UI テスト（XCTest）
 ├── IOSTemplateApp.xcodeproj # 共有スキーム IOSTemplateApp を含む
+├── AppStore/                # App Store の掲載情報（言語・撮る画面・説明文・クリエイティブアセット）
+├── Tools/                   # スクリーンショットの撮影と App Store Connect への反映
 ├── docs/                    # ExportOptions.plist のサンプル
 ├── scripts/                 # rename.sh
 ├── .swiftlint.yml           # SwiftLint 設定
@@ -174,7 +211,9 @@ body=$(gh pr view <番号> --json body -q .body) &&
         ├── _archive.yml     # 共通処理: Archive → Export（→ Upload）（workflow_call）
         ├── build.yml        # 全ブランチの push / Fork からの PR
         ├── archive.yml      # main の push
-        └── upload.yml       # develop / release/** の push
+        ├── upload.yml       # develop / release/** の push
+        ├── app-store-*.yml  # App Store の掲載情報の反映（手動実行）
+        └── verify-app-store-metadata.yml  # 掲載情報の検査（PR）
 ```
 
 - プロジェクトはフォルダ同期グループ（Xcode 16 以降の形式）で管理しているため、ファイルの追加・削除で pbxproj は変わりません

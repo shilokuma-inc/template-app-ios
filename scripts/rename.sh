@@ -11,6 +11,7 @@
 # 実行後に行うこと:
 #   - Configs/Project.xcconfig の DEVELOPMENT_TEAM / APP_BUNDLE_IDENTIFIER を書き換える
 #   - 差分を確認してコミットする
+#   - App Store に出す前に、AppStore/ の TODO: を書き換える（README の「App Store の掲載情報」）
 #
 set -euo pipefail
 
@@ -76,3 +77,4 @@ echo
 echo "完了しました。続けて以下を行ってください:"
 echo "  1. Configs/Project.xcconfig の DEVELOPMENT_TEAM と APP_BUNDLE_IDENTIFIER を書き換える"
 echo "  2. git diff で差分を確認し、コミットする"
+echo "  3. App Store に出す前に、AppStore/metadata/*.json と AppStore/creative/src/creative.html の TODO: を書き換える"

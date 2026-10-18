@@ -1,0 +1,316 @@
+name: Screenshots/App Store
+
+# App Store 用のスクリーンショットを、表示サイズ × 言語ぶん撮って App Store Connect に反映する。手動実行のみ。
+#
+# 撮る画面・並び順・表示サイズは AppStore/screenshots.json、言語は AppStore/languages.json、
+# ビルドする Scheme は AppStore/app.json で決める。撮影は Tools/capture_screenshots.sh が、アプリの撮影モード
+# （<プロジェクト名>/Screenshot/ScreenshotDemo.swift）を起動引数で切り替えながら行う。
+#
+# macOS ランナーの枠を開発のビルドと取り合わないよう、次の 3 つを守る。
+# - release/** ブランチから実行したときだけ撮る（リリースのときだけ撮る）
+# - 撮影は 1 本ずつ（max-parallel: 1）。同時に使う macOS ランナーは常に 1 台
+# - deriveFrom を書いた表示サイズ（6.3 inch）は撮らずに、元の表示サイズを ubuntu で縮めて作る。
+#   App Store Connect への反映も ubuntu で行う
+#
+# 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
+# upload を外せば撮るだけで、結果は artifact から取れる。
+
+on:
+  workflow_dispatch:
+    inputs:
+      display_types:
+        description: '撮影する表示サイズ（カンマ区切り）。空なら screenshots.json の全サイズ'
+        required: false
+        default: ''
+      languages:
+        description: '撮影する言語（カンマ区切り）。空なら languages.json の全言語'
+        required: false
+        default: ''
+      app_version:
+        description: '反映先のバージョン。空なら編集できるバージョンを自動で選ぶ'
+        required: false
+        default: ''
+      upload:
+        description: 'App Store Connect に反映する（外すと撮るだけ）'
+        type: boolean
+        default: true
+      missing_locales:
+        description: 'App Store Connect にその言語が無いときの扱い'
+        type: choice
+        options:
+          - fail
+          - skip
+          - create
+        default: fail
+      allow_non_release:
+        description: 'release/** 以外のブランチでも撮る（撮影の仕組みを確かめるときだけ。反映はしない）'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# 同じリポジトリで撮影が重なると、macOS ランナーを 2 台使ってしまう
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    outputs:
+      capture: ${{ steps.matrix.outputs.capture }}
+      derive: ${{ steps.matrix.outputs.derive }}
+      upload: ${{ steps.matrix.outputs.upload }}
+      has_derive: ${{ steps.matrix.outputs.has_derive }}
+      should_upload: ${{ steps.matrix.outputs.should_upload }}
+
+    steps:
+      - name: Check branch
+        env:
+          REF: ${{ github.ref }}
+          ALLOW_NON_RELEASE: ${{ inputs.allow_non_release }}
+        run: |
+          if [[ "$REF" != refs/heads/release/* && "$ALLOW_NON_RELEASE" != "true" ]]; then
+            echo "::error::スクリーンショットはリリースのときだけ撮ります。release/** ブランチを選んで実行してください（今: $REF）"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Resolve display types
+        id: matrix
+        env:
+          DISPLAY_TYPES: ${{ inputs.display_types }}
+          LANGUAGES: ${{ inputs.languages }}
+          REF: ${{ github.ref }}
+          UPLOAD: ${{ inputs.upload }}
+          ENABLE_DELIVERY: ${{ vars.ENABLE_DELIVERY }}
+        run: |
+          set -euo pipefail
+          # 指定ミスは撮影（macOS ランナーで数十分）の前にここで落とす
+          python3 Tools/app_store_config.py languages "$LANGUAGES" > /dev/null
+          python3 Tools/app_store_config.py scenes > /dev/null
+          matrix="$(python3 Tools/app_store_config.py display-types "$DISPLAY_TYPES")"
+          echo "$matrix" | python3 -m json.tool
+          {
+            echo "capture=$(jq -c .capture <<<"$matrix")"
+            echo "derive=$(jq -c .derive <<<"$matrix")"
+            echo "upload=$(jq -c .upload <<<"$matrix")"
+            echo "has_derive=$(jq -r '.derive | length > 0' <<<"$matrix")"
+            # 反映は release/** から実行したときだけ。ENABLE_DELIVERY=false のリポジトリ（テンプレート自身など）は反映しない
+            if [[ "$UPLOAD" == "true" && "$REF" == refs/heads/release/* && "$ENABLE_DELIVERY" != "false" ]]; then
+              echo "should_upload=true"
+            else
+              echo "should_upload=false"
+            fi
+          } >> "$GITHUB_OUTPUT"
+
+  capture:
+    name: capture (${{ matrix.label }})
+    needs: plan
+    # runner と Xcode は表示サイズごとに screenshots.json の runsOn / xcodeVersion で決める
+    runs-on: ${{ matrix.runs_on }}
+    timeout-minutes: 90
+    strategy:
+      # 1 本ずつ撮る。片方のサイズが失敗しても、残りは撮り切る
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.capture) }}
+
+    env:
+      SCREENSHOTS_DIR: build/screenshots
+
+    steps:
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ matrix.xcode_version }}
+
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # ランナーのイメージには選んだ Xcode に合う iOS ランタイムが入っていないことがある
+      # （xcode-27 は iOS 27.0 だけで、iPhone Duo には iOS 27.1 が要る）ので、無ければ入れる
+      - name: Prepare iOS runtime
+        run: |
+          set -euo pipefail
+          sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
+          if ! xcrun simctl list runtimes | grep -qF "iOS ${sdk} ("; then
+            echo "iOS ${sdk} のランタイムが無いのでダウンロードします"
+            xcodebuild -downloadPlatform iOS
+          fi
+          xcrun simctl list runtimes
+
+      - name: Allow SwiftLint build tool plugin
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+
+      - name: Capture screenshots
+        env:
+          LANGUAGES: ${{ inputs.languages }}
+          SKIP_PACKAGE_PLUGIN_VALIDATION: '1'
+          # xcode-27 のランナー（iPhone Duo）は起動直後の負荷が高く、既定の待ちでは 1 枚目が起動画面のまま撮れた。
+          # 他のサイズも数十秒延びるだけなので、全サイズで同じにする
+          WARMUP_SECONDS: 60
+          SETTLE_MINIMUM: 10
+        run: Tools/capture_screenshots.sh "${{ matrix.display_type }}" "$LANGUAGES"
+
+      - name: Upload screenshots as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots-${{ matrix.display_type }}
+          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
+          # 途中で失敗したときも撮れたぶんは残したいので、無くても警告どまりにする
+          if-no-files-found: warn
+
+  derive:
+    name: derive (${{ matrix.label }})
+    needs: [plan, capture]
+    if: ${{ !cancelled() && needs.plan.outputs.has_derive == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.derive) }}
+
+    env:
+      SCREENSHOTS_DIR: build/screenshots
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download source screenshots
+        uses: actions/download-artifact@v7
+        with:
+          name: screenshots-${{ matrix.source }}
+          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.source }}
+
+      - name: Derive screenshots
+        env:
+          LANGUAGES: ${{ inputs.languages }}
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --disable-pip-version-check pillow
+          options=()
+          if [ -n "$LANGUAGES" ]; then
+            options+=(--languages "$LANGUAGES")
+          fi
+          .venv/bin/python Tools/derive_screenshots.py \
+            --display-type "${{ matrix.display_type }}" \
+            --screenshots-dir "$SCREENSHOTS_DIR" \
+            ${options[@]+"${options[@]}"}
+          python3 Tools/verify_screenshots.py \
+            --directory "$SCREENSHOTS_DIR/${{ matrix.display_type }}" \
+            --sizes "$(python3 Tools/app_store_config.py sizes "${{ matrix.display_type }}" | paste -sd, -)"
+
+      - name: Upload screenshots as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots-${{ matrix.display_type }}
+          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
+          if-no-files-found: error
+
+  upload:
+    name: upload (${{ matrix.label }})
+    needs: [plan, capture, derive]
+    # 撮れた表示サイズだけでも反映できるよう、ほかの表示サイズが失敗していても進む（artifact が無いものはここで落ちる）
+    if: ${{ !cancelled() && needs.plan.outputs.should_upload == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.upload) }}
+
+    env:
+      SCREENSHOTS_DIR: build/screenshots
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download screenshots
+        uses: actions/download-artifact@v7
+        with:
+          name: screenshots-${{ matrix.display_type }}
+          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
+
+      - name: Create Private Key
+        # Secrets はシェル展開ではなく env 経由で渡す
+        env:
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/private_keys"
+          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey.p8"
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
+          DISPLAY_TYPE: ${{ matrix.display_type }}
+          LANGUAGES: ${{ inputs.languages }}
+          APP_VERSION: ${{ inputs.app_version }}
+          MISSING_LOCALES: ${{ inputs.missing_locales }}
+        run: |
+          set -euo pipefail
+          # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる
+          python3 -m venv .venv
+          .venv/bin/pip install --quiet --disable-pip-version-check pyjwt cryptography
+
+          options=(--missing-locales "$MISSING_LOCALES")
+          if [ -n "$LANGUAGES" ]; then
+            options+=(--languages "$LANGUAGES")
+          fi
+          if [ -n "$APP_VERSION" ]; then
+            options+=(--app-version "$APP_VERSION")
+          fi
+
+          # tee に繋ぐと標準出力がまとめ書きになり、失敗したときのログが前後するので -u で止める
+          .venv/bin/python -u Tools/upload_screenshots.py \
+            --screenshots-dir "$SCREENSHOTS_DIR/$DISPLAY_TYPE" \
+            --display-type "$DISPLAY_TYPE" \
+            "${options[@]}" \
+            | tee "$RUNNER_TEMP/upload.log"
+
+      - name: Summary
+        if: always()
+        env:
+          LABEL: ${{ matrix.label }}
+          DISPLAY_TYPE: ${{ matrix.display_type }}
+        run: |
+          set -euo pipefail
+          {
+            # 全角の括弧が続くと bash 3.2 は変数名の一部と見なすので、必ず波括弧で閉じる
+            echo "## スクリーンショット: ${LABEL}（${DISPLAY_TYPE}）"
+            echo
+            if [ -d "$SCREENSHOTS_DIR/$DISPLAY_TYPE" ]; then
+              echo "| 言語 | 枚数 |"
+              echo "|---|---|"
+              for directory in "$SCREENSHOTS_DIR/$DISPLAY_TYPE"/*/; do
+                [ -d "$directory" ] || continue
+                echo "| $(basename "$directory") | $(find "$directory" -name '*.png' | wc -l | tr -d ' ') |"
+              done
+            fi
+            if [ -f "$RUNNER_TEMP/upload.log" ]; then
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/upload.log"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
