@@ -67,15 +67,17 @@ GitHub の「Use this template」からリポジトリを作成し、clone し�
 ### 2. プロジェクト名を変更する
 
 `IOSTemplateApp` を新しいアプリ名に一括変更するスクリプトを用意しています。
-ディレクトリ・`.xcodeproj`・スキーム・ソース内の識別子・README のバッジ URL をまとめて置換します。
+ディレクトリ・`.xcodeproj`・スキーム・ソース内の識別子・README のバッジ URL をまとめて置換し、GitHub リポジトリの Discussions を有効にします。
 
 ```bash
 scripts/rename.sh MyApp
 ```
 
 - アプリ名は英字で始まる英数字のみです（Swift のモジュール名になります）
-- README のバッジ URL に使うリポジトリ名は `origin` から推定します。別のものを使う場合は第 2 引数で `owner/repo` を渡します
+- README のバッジ URL と Discussions の有効化に使うリポジトリ名は `origin` から推定します。別のものを使う場合は第 2 引数で `owner/repo` を渡します
 - 作業ツリーがクリーンな状態で実行し、実行後に `git diff` で差分を確認してコミットしてください
+- テンプレートから作成したリポジトリには Discussions の設定が引き継がれず、無効のままになります（ralph-loop はゴールを Discussion で受け取ります）。スクリプトは `gh repo edit --enable-discussions` で有効にするため、`gh` で認証済みで、リポジトリの管理者権限が必要です
+- Discussions を有効にできなかったときは、リネームは止めずに警告と手順を表示します。表示された手順で有効にしてください
 
 ### 3. 署名情報を設定する
 
