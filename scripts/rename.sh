@@ -1,12 +1,13 @@
 #!/bin/bash
 #
 # テンプレートのプロジェクト名（IOSTemplateApp）を新しいアプリ名に一括変更する。
+# あわせて、GitHub リポジトリの Discussions を有効にする（テンプレートから作成しても設定は引き継がれない）。
 #
 # 使い方:
 #   scripts/rename.sh <NewAppName> [owner/repo]
 #
 #   NewAppName  新しいプロジェクト名。英字で始まる英数字のみ（例: MyApp）
-#   owner/repo  README のバッジ URL に使う GitHub リポジトリ。省略時は origin から推定する
+#   owner/repo  README のバッジ URL と Discussions の有効化に使う GitHub リポジトリ。省略時は origin から推定する
 #
 # 実行後に行うこと:
 #   - Configs/Project.xcconfig の DEVELOPMENT_TEAM / APP_BUNDLE_IDENTIFIER を書き換える
@@ -72,6 +73,27 @@ git ls-files -z \
       perl -pi -e "s/\Q$OLD_NAME\E/$NEW_NAME/g; s#\Q$OLD_REPO\E#$NEW_REPO#g" "$file"
       echo "  $file"
     done
+
+# 3) GitHub リポジトリの Discussions を有効にする（ralph-loop はゴールを Discussion で受け取る）
+#    gh が無い・権限が無いなどで有効にできなくても、リネームは止めずに手順を表示する
+echo "==> Discussions を有効化"
+if ! command -v gh >/dev/null 2>&1; then
+  discussions_enabled=false
+  echo "  gh コマンドが見つかりません" >&2
+elif [[ "$(gh repo view "$NEW_REPO" --json hasDiscussionsEnabled --jq .hasDiscussionsEnabled 2>/dev/null)" == "true" ]]; then
+  discussions_enabled=true
+  echo "  ${NEW_REPO}: 既に有効です"
+elif gh repo edit "$NEW_REPO" --enable-discussions; then
+  discussions_enabled=true
+  echo "  ${NEW_REPO}: 有効にしました"
+else
+  discussions_enabled=false
+fi
+if [[ "$discussions_enabled" != true ]]; then
+  echo "  警告: Discussions を有効にできませんでした。リポジトリの管理者が次のどちらかで有効にしてください:" >&2
+  echo "    - gh repo edit ${NEW_REPO} --enable-discussions" >&2
+  echo "    - GitHub のリポジトリの Settings → General → Features で Discussions にチェックを入れる" >&2
+fi
 
 echo
 echo "完了しました。続けて以下を行ってください:"
