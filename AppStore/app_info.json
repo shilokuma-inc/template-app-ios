@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・価格と配信状況。Tools/upload_app_info.py が反映する（Metadata/App Store から流れる）。",
+    "名前・サブタイトル・プライバシーポリシーの URL・著作権は AppStore/metadata/ に書く（言語ごとの掲載文と一緒に反映する）。",
+    "primaryCategory はプライマリカテゴリの ID で必須。例: UTILITIES / PRODUCTIVITY / LIFESTYLE / ENTERTAINMENT / EDUCATION / MUSIC / GAMES / DEVELOPER_TOOLS。ID が違えば反映の前に使える一覧を出して止まる。",
+    "secondaryCategory（セカンダリカテゴリ）は任意。GAMES などサブカテゴリがあるカテゴリは primarySubcategories / secondarySubcategories に 2 つまで書ける（例: [\"GAMES_PUZZLE\"]）。省略すると App Store Connect 側の値を残す。",
+    "contentRightsDeclaration は、第三者のコンテンツ（ほかの人の文章・画像・音楽など）を表示・利用するかどうか。使わないなら DOES_NOT_USE_THIRD_PARTY_CONTENT、使う（権利も持っている）なら USES_THIRD_PARTY_CONTENT。",
+    "ageRating は年齢制限の質問への回答。テンプレートはすべて「なし」（4+）なので、アプリに合わせて見直す。広告を出すなら advertising、ほかの人の投稿を見せるなら userGeneratedContent、アプリ内でブラウザのように任意のサイトを開けるなら unrestrictedWebAccess を true にする。",
+    "  頻度で答える質問は NONE / INFREQUENT_OR_MILD / FREQUENT_OR_INTENSE（質問によっては INFREQUENT / FREQUENT）。キッズカテゴリに出すときは kidsAgeBand を足す。",
+    "review は App Review に関する情報。ログインしないと使えない機能があるなら demoAccountRequired を true にし、notes（審査のメモ。英語で書く）に試し方を書く。",
+    "  連絡先（氏名・電話番号・メールアドレス）とデモアカウントは個人情報・秘密なので、ここには書かず Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）で渡す。",
+    "pricing / availability は、App Store Connect で未設定のとき（最初のリリースの前）だけ書き込む。設定済みなら触らないので、価格や配信先を変えるときは App Store Connect の画面で行う。",
+    "  pricing.price は FREE だけ書ける（有料のアプリは App Store Connect で設定し、pricing を消す）。availability.territories は ALL（すべての国と地域）か、[\"JPN\"] のような 3 文字のコードの配列。"
+  ],
+  "primaryCategory": "TODO: UTILITIES",
+  "contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT",
+  "ageRating": {
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gamblingSimulated": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "profanityOrCrudeHumor": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "advertising": false,
+    "ageAssurance": false,
+    "gambling": false,
+    "healthOrWellnessTopics": false,
+    "lootBox": false,
+    "messagingAndChat": false,
+    "parentalControls": false,
+    "socialMedia": false,
+    "unrestrictedWebAccess": false,
+    "userGeneratedContent": false
+  },
+  "review": {
+    "demoAccountRequired": false
+  },
+  "pricing": {
+    "price": "FREE",
+    "baseTerritory": "JPN"
+  },
+  "availability": {
+    "territories": "ALL",
+    "availableInNewTerritories": true
+  }
+}
