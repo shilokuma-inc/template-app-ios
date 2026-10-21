@@ -622,8 +622,13 @@ def main() -> int:
             write()
 
     print("完了")
-    # App のプライバシー（収集するデータの申告）は API が無いので、いつも手で入れる
-    reminders.append("App のプライバシー（収集するデータの申告。API が無いので、いつも App Store Connect で入力する）")
+    # ワークフローで反映できないもの（README の「審査に出す前に App Store Connect で手入力するもの」）。
+    # アプリの作成は、済んでいなければ find_app で先に止まるので載せない
+    reminders.extend([
+        "App のプライバシー（収集するデータの申告。API が無いので、いつも App Store Connect で入力する）",
+        "ビルドの選択と審査への提出",
+        "デジタルサービス法（EU）の取引業者の情報（アカウントで一度だけ。登録済みなら不要）",
+    ])
     print("審査に出す前に App Store Connect で入力が要るもの:")
     for reminder in reminders:
         print(f"  - {reminder}")
