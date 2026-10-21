@@ -2,6 +2,7 @@ name: Verify/App Store metadata
 
 # App Store の説明文などは、文字数の上限を超えていると App Store Connect への反映時に弾かれる。
 # 反映（Metadata/App Store）の前に、PR の時点で欠損と文字数超過を機械的に落とす。
+# App 情報（カテゴリ・年齢制限など、AppStore/app_info.json）も、書き方と年齢制限の質問の漏れを確かめる。
 # あわせて、スクリーンショットの撮影設定（枚数の上限、撮影モードの Scene との突き合わせなど）も読めるか確かめる。
 # JSON を読むだけなので macOS ランナーもビルドも必要ない。
 
@@ -31,6 +32,9 @@ jobs:
 
       - name: Verify App Store metadata
         run: python3 Tools/upload_metadata.py --check
+
+      - name: Verify app info
+        run: python3 Tools/upload_app_info.py --check
 
       - name: Verify screenshot config
         run: |
