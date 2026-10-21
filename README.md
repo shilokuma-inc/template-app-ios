@@ -175,7 +175,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 
 | ワークフロー | 反映するもの | 元ネタ | ランナー |
 |---|---|---|---|
-| `Screenshots/App Store` | スクリーンショット（iPhone 6.9 inch / 6.3 inch / iPad 13 inch / iPhone Duo × 各言語） | `AppStore/screenshots.json` / `AppStore/languages.json` / `AppStore/app.json` | 撮影だけ macOS、縮小と反映は ubuntu |
+| `Screenshots/App Store` | スクリーンショット（iPhone 6.3 inch / iPhone Duo / iPhone 6.9 inch / iPad 13 inch × 各言語） | `AppStore/screenshots.json` / `AppStore/languages.json` / `AppStore/app.json` | 撮影だけ macOS、縮小と反映は ubuntu |
 | `Metadata/App Store` | 説明文・キーワード・プロモーションテキスト・最新情報・URL（既定は dry-run） | `AppStore/metadata/*.json` | ubuntu |
 | `Creative assets/App Store` | プロダクトページのヘッダーと検索結果のクリエイティブアセット（既定は dry-run） | `AppStore/creative_assets.json` / `AppStore/creative/<言語>/` | ubuntu |
 | `Verify/App Store metadata` | PR で、文字数の上限・撮影設定・撮影モードの Scene との対応を検査する | `AppStore/**` | ubuntu |
@@ -184,6 +184,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 
 - 撮影はアプリの撮影モード（[IOSTemplateApp/Screenshot/ScreenshotDemo.swift](IOSTemplateApp/Screenshot/ScreenshotDemo.swift)）で行います。`Tools/capture_screenshots.sh` が `-screenshot-demo -screenshot-scene <名前>` と言語を起動引数で渡し、アプリはデモデータで目的の画面を開きます
 - 画面を足すときは、`ScreenshotDemo.Scene` に case を足し、`IOSTemplateApp.swift` の `rootView` で開く画面を返し、`AppStore/screenshots.json` の `scenes` に同じ名前を足します（1 表示サイズにつき 10 枚まで）
+- App Store Connect で必須なのは iPhone 6.1 / 6.3 inch（`APP_IPHONE_61`、1206x2622 か 1179x2556）と iPhone Duo（`APP_IPHONE_DUO`）です。iPad に対応するアプリは iPad 13 inch も必須です。大型ディスプレイ（6.5 / 6.7 / 6.9 inch、`APP_IPHONE_67`）は任意ですが、6.3 inch の元になるので必ず撮ります（反映だけ外すなら `display_types` に `APP_IPHONE_61,APP_IPHONE_DUO` のように必要なものだけ書きます）
 - 撮るのはリリースのときだけです。`release/**` ブランチを選んで手動実行します（それ以外のブランチでは止まります）
 - macOS ランナーの枠を開発のビルドと取り合わないよう、撮影は 1 本ずつ流します。6.3 inch（`deriveFrom`）は撮らずに 6.9 inch を ubuntu で縮めて作り、App Store Connect への反映も ubuntu で行います
 - iPhone Duo は Xcode 27.1 と iOS 27.1 のランタイムが要るので、`xcode-27` のランナーで撮ります（`screenshots.json` の `runsOn` / `xcodeVersion`）
