@@ -1,12 +1,16 @@
 {
   "_comment": [
-    "App Store の日本語（ja）の説明文など。上限: description 4000 字 / keywords 合計 100 字（カンマ込み）/ promotionalText 170 字 / whatsNew 4000 字。",
+    "App Store の日本語（ja）の説明文など。上限: name 30 字 / subtitle 30 字 / description 4000 字 / keywords 合計 100 字（カンマ込み）/ promotionalText 170 字 / whatsNew 4000 字。",
     "アプリ名とカテゴリ名はもともと検索対象なので keywords に入れなくてよい。",
+    "name は App Store に出すアプリ名（30 字以内）。省略すると App Store Connect 側の値を残すが、App Store Connect にその言語の App 情報が無い（アプリを作ったときの言語でない）ときは、追加するのに必要。",
+    "subtitle はアプリ名の下に出るひとこと（30 字以内）。省略できる（省略すると App Store Connect 側の値を残す）。サブタイトルも検索の対象なので、keywords と同じ語を重ねなくてよい。",
     "promotionalText は省略できる（省略すると App Store Connect 側の値をそのまま残す）。",
     "whatsNew は「このバージョンの最新情報」。{\"version\": \"1.1.0\", \"text\": \"…\"} の形で書き、version が反映先のバージョンと一致するときだけ書き込む。",
     "最初のバージョン（1.0.0）には最新情報の欄が無いので、2 つ目のバージョンから足す。",
     "TODO: テンプレートの仮の文言。アプリを作ったら書き換える（Metadata/App Store は既定で dry-run）。"
   ],
+  "name": "TODO: アプリ名",
+  "subtitle": "TODO: アプリ名の下のひとこと",
   "promotionalText": "TODO: アプリの魅力を 170 字以内でひとことで。バージョンを出さずに書き換えられます。",
   "description": "TODO: アプリの説明文。何ができるアプリか、主な機能、使い方の順に書く。\n\n■ 主な機能\n• 機能 1\n• 機能 2\n• 機能 3",
   "keywords": [
