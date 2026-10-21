@@ -1,9 +1,17 @@
 name: Metadata/App Store
 
-# App Store の説明文・キーワード・プロモーションテキスト・最新情報・URL を App Store Connect に反映する。手動実行のみ。
+# App Store の掲載情報と、審査に出すのに要る App 情報などを App Store Connect に反映する。手動実行のみ。
 #
-# 元ネタは AppStore/metadata/<言語>.json と shared.json。欠損と文字数超過は
-# Verify/App Store metadata が PR の時点で落とすので、ここまで来たものは通る前提。
+#   Tools/upload_metadata.py … 名前・サブタイトル・説明文・キーワード・プロモーションテキスト・最新情報・URL・プライバシーポリシーの URL・著作権
+#                              （元ネタは AppStore/metadata/<言語>.json と shared.json）
+#   Tools/upload_app_info.py … カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・価格と配信状況
+#                              （元ネタは AppStore/app_info.json。価格と配信状況は未設定のときだけ書き込む）
+#
+# App Review に関する情報の連絡先・デモアカウントは JSON に置かず、Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）から渡す。
+# Organization の Secrets に登録しておけば、テンプレートから作ったリポジトリすべてで使われる。未登録なら連絡先は書き込まない。
+# App のプライバシー（収集するデータの申告）は API が無いので、App Store Connect の画面で入力する。
+#
+# 欠損と文字数超過は Verify/App Store metadata が PR の時点で落とすので、ここまで来たものは通る前提。
 # 最新情報（whatsNew）は、JSON の whatsNew.version が反映先のバージョンと一致するときだけ書き込む。
 # テンプレートの仮の文言（TODO:）が残っているあいだは、dry-run でも止まる。
 #
@@ -54,7 +62,10 @@ jobs:
       - name: Verify metadata
         env:
           LANGUAGES: ${{ inputs.languages }}
-        run: python3 Tools/upload_metadata.py --check --languages "$LANGUAGES"
+        run: |
+          set -euo pipefail
+          python3 Tools/upload_metadata.py --check --languages "$LANGUAGES"
+          python3 Tools/upload_app_info.py --check
 
       - name: Create Private Key
         # Secrets はシェル展開ではなく env 経由で渡す
@@ -94,6 +105,33 @@ jobs:
           # Bundle ID は Configs/Project.xcconfig から読む（ワークフローに書き写すと二重管理になるため）
           .venv/bin/python -u Tools/upload_metadata.py "${options[@]}" | tee "$RUNNER_TEMP/upload.log"
 
+      - name: Upload app info to App Store Connect
+        env:
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APP_STORE_CONNECT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
+          # 連絡先とデモアカウントは個人情報・秘密なので Secrets から渡す（スクリプトは値をログに出さない）
+          APP_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APP_REVIEW_CONTACT_FIRST_NAME }}
+          APP_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APP_REVIEW_CONTACT_LAST_NAME }}
+          APP_REVIEW_CONTACT_PHONE: ${{ secrets.APP_REVIEW_CONTACT_PHONE }}
+          APP_REVIEW_CONTACT_EMAIL: ${{ secrets.APP_REVIEW_CONTACT_EMAIL }}
+          APP_REVIEW_DEMO_ACCOUNT_NAME: ${{ secrets.APP_REVIEW_DEMO_ACCOUNT_NAME }}
+          APP_REVIEW_DEMO_ACCOUNT_PASSWORD: ${{ secrets.APP_REVIEW_DEMO_ACCOUNT_PASSWORD }}
+          APP_VERSION: ${{ inputs.app_version }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          options=()
+          if [ -n "$APP_VERSION" ]; then
+            options+=(--app-version "$APP_VERSION")
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            options+=(--dry-run)
+          fi
+
+          # venv は前のステップで作ったものを使う
+          .venv/bin/python -u Tools/upload_app_info.py "${options[@]}" | tee "$RUNNER_TEMP/upload-app-info.log"
+
       - name: Summary
         if: always()
         env:
@@ -105,9 +143,11 @@ jobs:
             echo
             echo "- 反映: $([ "$DRY_RUN" = "true" ] && echo "しない（dry-run）" || echo "する")"
             echo
-            if [ -f "$RUNNER_TEMP/upload.log" ]; then
-              echo '```diff'
-              cat "$RUNNER_TEMP/upload.log"
-              echo '```'
-            fi
+            for log in upload upload-app-info; do
+              if [ -f "$RUNNER_TEMP/$log.log" ]; then
+                echo '```diff'
+                cat "$RUNNER_TEMP/$log.log"
+                echo '```'
+              fi
+            done
           } >> "$GITHUB_STEP_SUMMARY"
