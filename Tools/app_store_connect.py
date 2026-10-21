@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """App Store Connect API の薄いクライアント。
 
-スクリーンショット（`upload_screenshots.py`）とメタデータ（`upload_metadata.py`）の
-両方から使う。認証・バージョンの絞り込み・言語（`appStoreVersionLocalizations`）の
-取り回しは共通なので、ここに 1 つだけ置く。
+スクリーンショット（`upload_screenshots.py`）・メタデータ（`upload_metadata.py`）・
+App 情報（`upload_app_info.py`）などから使う。認証・バージョンと App 情報の絞り込み・
+言語（`appStoreVersionLocalizations` / `appInfoLocalizations`）の取り回しは共通なので、ここに 1 つだけ置く。
 
 認証は App Store Connect API Key（.p8）。次の環境変数から読む想定。
 
@@ -41,6 +41,14 @@ EDITABLE_STATES = {
     "INVALID_BINARY",
 }
 
+#: App 情報（appInfos。名前・サブタイトル・カテゴリ・年齢制限など）を書き換えられる状態。
+#: 配信中のアプリには配信中の App 情報（READY_FOR_DISTRIBUTION）と、次のバージョン用の App 情報の 2 つがある
+EDITABLE_APP_INFO_STATES = {
+    "PREPARE_FOR_SUBMISSION",
+    "DEVELOPER_REJECTED",
+    "REJECTED",
+}
+
 #: アップロード後、Apple 側の取り込みが終わるのを待つ上限（秒）
 DELIVERY_TIMEOUT = 300
 
@@ -56,7 +64,10 @@ TOKEN_REFRESH_MARGIN = 5 * 60
 
 
 class ApiError(RuntimeError):
-    pass
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        #: HTTP のステータスコード（転送の失敗など、API の応答でないときは None）
+        self.status = status
 
 
 class AppStoreConnect:
@@ -89,7 +100,7 @@ class AppStoreConnect:
                 raw = response.read()
         except urllib.error.HTTPError as error:
             detail = error.read().decode(errors="replace")
-            raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}") from None
+            raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}", error.code) from None
         return json.loads(raw) if raw else {}
 
     def get(self, path: str, params: dict | None = None) -> dict:
@@ -98,6 +109,18 @@ class AppStoreConnect:
             query = urllib.parse.urlencode(params)
             url = f"{url}?{query}"
         return self._request("GET", url)
+
+    def get_or_none(self, path: str, params: dict | None = None) -> dict | None:
+        """1 件を返すエンドポイントの `data`。まだ作られていない（404 か data が null）なら None。
+
+        価格・配信状況・審査の情報などは、App Store Connect で一度も設定していないと 404 になる。
+        """
+        try:
+            return self.get(path, params).get("data")
+        except ApiError as error:
+            if error.status == 404:
+                return None
+            raise
 
     def get_all(self, path: str, params: dict | None = None) -> list[dict]:
         """ページングをたどって全件返す。"""
@@ -163,6 +186,65 @@ class AppStoreConnect:
                 f"編集できるバージョンが複数あります（{names}）。--app-version で選んでください。"
             )
         return editable[0]
+
+    def find_app_info(self, app_id: str) -> dict:
+        """書き換えられる App 情報（appInfos）を返す。
+
+        App 情報はバージョンとは別のリソースで、名前・サブタイトル・プライバシーポリシーの URL（言語ごと）と、
+        カテゴリ・年齢制限を持つ。次のバージョンを作ると、そのバージョン用の App 情報が「提出準備中」でできる。
+        """
+        infos = self.get_all(f"/v1/apps/{app_id}/appInfos")
+
+        def editable(info: dict) -> bool:
+            attributes = info["attributes"]
+            if attributes.get("state"):
+                return attributes["state"] in EDITABLE_APP_INFO_STATES
+            # state が無い古い応答では、非推奨の appStoreState（バージョンと同じ値）で見る
+            return attributes.get("appStoreState") in EDITABLE_STATES
+
+        candidates = [info for info in infos if editable(info)]
+        if not candidates:
+            states = ", ".join(sorted({
+                str(info["attributes"].get("state") or info["attributes"].get("appStoreState"))
+                for info in infos
+            }))
+            raise SystemExit(
+                "編集できる状態の App 情報がありません"
+                f"（いまある状態: {states or 'なし'}）。"
+                "App Store Connect で次のバージョンを作ってから実行してください。"
+            )
+        if len(candidates) > 1:
+            raise SystemExit(
+                f"編集できる App 情報が {len(candidates)} つあります。App Store Connect の画面で状態を確認してください。"
+            )
+        return candidates[0]
+
+    def app_info_localization_entries(self, app_info_id: str) -> dict[str, dict]:
+        """ロケール → そのロケールの `appInfoLocalizations`（名前・サブタイトルなどの現在値を含む）。"""
+        entries = self.get_all(f"/v1/appInfos/{app_info_id}/appInfoLocalizations")
+        return {entry["attributes"]["locale"]: entry for entry in entries}
+
+    def create_app_info_localization(self, app_info_id: str, locale: str, attributes: dict) -> str:
+        """App 情報に言語を追加する。名前（name）が無いと作れない。
+
+        バージョンの言語（appStoreVersionLocalizations）とは別物で、片方を作ってももう片方はできない。
+        アプリを作ったときの言語（プライマリ言語）にしか無いので、2 つ目の言語はここで作る。
+        """
+        if self.dry_run:
+            return "dry-run"
+        response = self.post(
+            "/v1/appInfoLocalizations",
+            {
+                "data": {
+                    "type": "appInfoLocalizations",
+                    "attributes": {**attributes, "locale": locale},
+                    "relationships": {
+                        "appInfo": {"data": {"type": "appInfos", "id": app_info_id}}
+                    },
+                }
+            },
+        )
+        return response["data"]["id"]
 
     def localizations(self, version_id: str) -> dict[str, str]:
         return {locale: entry["id"] for locale, entry in self.localization_entries(version_id).items()}
