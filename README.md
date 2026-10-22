@@ -205,7 +205,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 
 | 項目 | JSON のキー | 書き込み方 |
 |---|---|---|
-| カテゴリ | `primaryCategory`（必須）・`secondaryCategory`・`primarySubcategories` / `secondarySubcategories` | カテゴリの ID（`UTILITIES` など）で書きます。ID が違えば、使える一覧を出して書き込む前に止まります |
+| カテゴリ | `primaryCategory`（必須）・`secondaryCategory`・`primarySubcategories` / `secondarySubcategories` | カテゴリの ID（`UTILITIES` など）で書きます。ID が違えば、使える一覧を出して書き込む前に止まります。カテゴリを変えたときは、書いていない古いサブカテゴリを App Store Connect からも外します |
 | コンテンツの権利 | `contentRightsDeclaration` | 第三者のコンテンツを使わないなら `DOES_NOT_USE_THIRD_PARTY_CONTENT` |
 | 年齢制限 | `ageRating` | 質問ごとの回答。テンプレートはすべて「なし」（4+）なので、広告（`advertising`）・ほかの人の投稿（`userGeneratedContent`）などをアプリに合わせて見直します。質問が漏れていると PR の検査で落ちます |
 | App Review に関する情報 | `review`（`demoAccountRequired`・`notes`） | 連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |

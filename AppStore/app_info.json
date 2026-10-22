@@ -3,7 +3,7 @@
     "App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・価格と配信状況。Tools/upload_app_info.py が反映する（Metadata/App Store から流れる）。",
     "名前・サブタイトル・プライバシーポリシーの URL・著作権は AppStore/metadata/ に書く（言語ごとの掲載文と一緒に反映する）。",
     "primaryCategory はプライマリカテゴリの ID で必須。例: UTILITIES / PRODUCTIVITY / LIFESTYLE / ENTERTAINMENT / EDUCATION / MUSIC / GAMES / DEVELOPER_TOOLS。ID が違えば反映の前に使える一覧を出して止まる。",
-    "secondaryCategory（セカンダリカテゴリ）は任意。GAMES などサブカテゴリがあるカテゴリは primarySubcategories / secondarySubcategories に 2 つまで書ける（例: [\"GAMES_PUZZLE\"]）。省略すると App Store Connect 側の値を残す。",
+    "secondaryCategory（セカンダリカテゴリ）は任意。GAMES などサブカテゴリがあるカテゴリは primarySubcategories / secondarySubcategories に 2 つまで書ける（例: [\"GAMES_PUZZLE\"]）。省略すると App Store Connect 側の値を残す（ただし親のカテゴリを変えたときは、書いていない古いサブカテゴリを外す）。",
     "contentRightsDeclaration は、第三者のコンテンツ（ほかの人の文章・画像・音楽など）を表示・利用するかどうか。使わないなら DOES_NOT_USE_THIRD_PARTY_CONTENT、使う（権利も持っている）なら USES_THIRD_PARTY_CONTENT。",
     "ageRating は年齢制限の質問への回答。テンプレートはすべて「なし」（4+）なので、アプリに合わせて見直す。広告を出すなら advertising、ほかの人の投稿を見せるなら userGeneratedContent、アプリ内でブラウザのように任意のサイトを開けるなら unrestrictedWebAccess を true にする。",
     "  頻度で答える質問は NONE / INFREQUENT_OR_MILD / FREQUENT_OR_INTENSE（質問によっては INFREQUENT / FREQUENT）。キッズカテゴリに出すときは kidsAgeBand を足す。",

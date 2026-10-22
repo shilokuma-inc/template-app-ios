@@ -376,10 +376,30 @@ def plan_categories(client, app_info: dict, categories: dict[str, str]) -> Step:
         relationship: (client.get_or_none(f"/v1/appInfos/{app_info['id']}/relationships/{relationship}") or {}).get("id")
         for relationship in categories
     }
-    changed = {relationship: value for relationship, value in categories.items() if current[relationship] != value}
+    changed: dict[str, str | None] = {
+        relationship: value for relationship, value in categories.items() if current[relationship] != value
+    }
+
+    # 親のカテゴリを変えるときは、JSON に書いていない古いサブカテゴリを外す（None → data: null）。
+    # 前のカテゴリのサブカテゴリ（GAMES_TRIVIA など）は、新しいカテゴリ（EDUCATION など）では使えないため。
+    # 親を変えないときは、書いていないサブカテゴリは App Store Connect 側の値を残す
+    for parent, subcategories in (
+        ("primaryCategory", SUBCATEGORY_KEYS["primarySubcategories"]),
+        ("secondaryCategory", SUBCATEGORY_KEYS["secondarySubcategories"]),
+    ):
+        if parent not in changed:
+            continue
+        for relationship in subcategories:
+            if relationship in categories:
+                continue
+            existing = (client.get_or_none(f"/v1/appInfos/{app_info['id']}/relationships/{relationship}") or {}).get("id")
+            if existing:
+                current[relationship] = existing
+                changed[relationship] = None
+
     if not changed:
         return label, [], None
-    lines = [f"    {relationship}: {show(current[relationship])} → {value}" for relationship, value in changed.items()]
+    lines = [f"    {relationship}: {show(current[relationship])} → {show(value)}" for relationship, value in changed.items()]
     return label, lines, lambda: client.patch(
         f"/v1/appInfos/{app_info['id']}",
         {
@@ -387,7 +407,7 @@ def plan_categories(client, app_info: dict, categories: dict[str, str]) -> Step:
                 "type": "appInfos",
                 "id": app_info["id"],
                 "relationships": {
-                    relationship: {"data": {"type": "appCategories", "id": value}}
+                    relationship: {"data": {"type": "appCategories", "id": value} if value else None}
                     for relationship, value in changed.items()
                 },
             }
