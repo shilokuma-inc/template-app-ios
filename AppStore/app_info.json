@@ -7,7 +7,8 @@
     "contentRightsDeclaration は、第三者のコンテンツ（ほかの人の文章・画像・音楽など）を表示・利用するかどうか。使わないなら DOES_NOT_USE_THIRD_PARTY_CONTENT、使う（権利も持っている）なら USES_THIRD_PARTY_CONTENT。",
     "ageRating は年齢制限の質問への回答。テンプレートはすべて「なし」（4+）なので、アプリに合わせて見直す。広告を出すなら advertising、ほかの人の投稿を見せるなら userGeneratedContent、アプリ内でブラウザのように任意のサイトを開けるなら unrestrictedWebAccess を true にする。",
     "  頻度で答える質問は NONE / INFREQUENT_OR_MILD / FREQUENT_OR_INTENSE（質問によっては INFREQUENT / FREQUENT）。キッズカテゴリに出すときは kidsAgeBand を足す。",
-    "review は App Review に関する情報。ログインしないと使えない機能があるなら demoAccountRequired を true にし、notes（審査のメモ。英語で書く）に試し方を書く。",
+    "review は App Review に関する情報。notesFile（app_info.json からの相対パス）の英文を審査のメモとして書き込む（上限 4000 字）。最初の審査で求められる 6 項目（目的・使い方・外部サービスなど）の雛形が review_notes.txt にあるので、TODO: を書き換える。短いメモなら notesFile の代わりに notes に直接書いてもよい（片方だけ）。",
+    "  ログインしないと使えない機能があるなら demoAccountRequired を true にし、メモに試し方を書く。実機の画面収録は API で反映しないので、App Store Connect の添付ファイルに付ける。",
     "  連絡先（氏名・電話番号・メールアドレス）とデモアカウントは個人情報・秘密なので、ここには書かず Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）で渡す。",
     "pricing / availability は、App Store Connect で未設定のとき（最初のリリースの前）だけ書き込む。設定済みなら触らないので、価格や配信先を変えるときは App Store Connect の画面で行う。",
     "  pricing.price は FREE だけ書ける（有料のアプリは App Store Connect で設定し、pricing を消す）。availability.territories は ALL（すべての国と地域）か、[\"JPN\"] のような 3 文字のコードの配列。"
@@ -40,7 +41,8 @@
     "userGeneratedContent": false
   },
   "review": {
-    "demoAccountRequired": false
+    "demoAccountRequired": false,
+    "notesFile": "review_notes.txt"
   },
   "pricing": {
     "price": "FREE",

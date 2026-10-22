@@ -1,0 +1,21 @@
+TODO: アプリの名前 - Notes for App Review
+TODO: 最初の審査で Apple が求める 6 項目（Guideline 2.1 - Information Needed）への回答。英語で書き、TODO: の行をすべて書き換える（上限 4000 字）。書き方の例は shilokuma-inc/numer0n-lens-ios の AppStore/review_notes.txt
+
+1. SCREEN RECORDING
+A screen recording from a physical iPhone running the latest iOS is attached to the App Review Information. It starts by launching the app and shows the typical flow: TODO: 映す画面を順に書く（例: tutorial, creating an item, editing it, settings）.
+TODO: アカウントの登録・ログイン・アカウントの削除、ユーザーの投稿（通報とブロック）、課金があれば、動画にも映してここに書く。無ければ次の 1 文にする: The app has no account registration, login, user-generated content, paid content, or In-App Purchases.
+
+2. PURPOSE AND TARGET AUDIENCE
+TODO: 何をするアプリか・誰のためのアプリか・どんな困りごとを解決し、どんな価値があるか。
+
+3. HOW TO ACCESS THE MAIN FEATURES
+TODO: 主な機能までの手順を番号付きで書く。ログインやサンプルファイルが要らなければ、まず No login, account, credentials, or sample files are required. と書く。UI が英語でなければ、ボタンの文言を原文のまま引用し、[角括弧] で英訳を添える。ログインが要るなら app_info.json の review.demoAccountRequired を true にし、デモアカウントは Secrets で渡す（ここには書かない）。
+
+4. EXTERNAL SERVICES
+TODO: 主な機能のために使う外部サービス（データ提供元・認証・決済・解析・広告・AI など）を挙げる。無ければ None. The app works entirely offline. のように書く。
+
+5. REGIONAL DIFFERENCES
+TODO: 地域による機能や内容の違い。無ければ None. The app's features and content are the same in all regions. と書く。
+
+6. REGULATED INDUSTRY / THIRD-PARTY MATERIAL
+TODO: 規制のある業種（金融・医療・ギャンブルなど）か、第三者の保護された素材（商標・著作物・ライセンスを受けた素材）を含むかと、使ってよいことを示す資料。どちらも無ければそう書く。同梱したフォントなどのライセンスはここに挙げる。

@@ -207,7 +207,29 @@ def load_age_rating(raw, problems: list[str]) -> dict:
     return answers
 
 
-def load_review(raw, problems: list[str]) -> dict:
+def check_notes(notes, name: str, problems: list[str]) -> str | None:
+    if not (isinstance(notes, str) and notes.strip()):
+        problems.append(f"{name} が空です（使わないなら項目ごと消す）")
+        return None
+    if len(notes) > REVIEW_NOTES_LIMIT:
+        problems.append(f"{name} が {len(notes)} 字あります（上限 {REVIEW_NOTES_LIMIT} 字）")
+        return None
+    return notes
+
+
+def read_notes_file(value, base: Path, problems: list[str]) -> str | None:
+    """review.notesFile（app_info.json からの相対パス）のメモを読む。前後の空白と改行は落とす。"""
+    if not (isinstance(value, str) and value.strip()):
+        problems.append("review.notesFile はファイルのパス（app_info.json からの相対パス）で書く（例: \"review_notes.txt\"）")
+        return None
+    path = base / value
+    if not path.is_file():
+        problems.append(f"review.notesFile のファイルがありません: {path}")
+        return None
+    return check_notes(path.read_text(encoding="utf-8").strip(), f"review.notesFile（{value}）", problems)
+
+
+def load_review(raw, problems: list[str], base: Path) -> dict:
     if raw is None:
         return {}
     if not isinstance(raw, dict):
@@ -220,15 +242,17 @@ def load_review(raw, problems: list[str]) -> dict:
             attributes["demoAccountRequired"] = review["demoAccountRequired"]
         else:
             problems.append("review.demoAccountRequired は true か false で書く")
-    if "notes" in review:
-        notes = review["notes"]
-        if not (isinstance(notes, str) and notes.strip()):
-            problems.append("review.notes が空です（使わないなら項目ごと消す）")
-        elif len(notes) > REVIEW_NOTES_LIMIT:
-            problems.append(f"review.notes が {len(notes)} 字あります（上限 {REVIEW_NOTES_LIMIT} 字）")
-        else:
+    if "notes" in review and "notesFile" in review:
+        problems.append("review.notes と review.notesFile は片方だけ書く")
+    elif "notes" in review:
+        notes = check_notes(review["notes"], "review.notes", problems)
+        if notes:
             attributes["notes"] = notes
-    unknown = sorted(set(review) - {"demoAccountRequired", "notes"})
+    elif "notesFile" in review:
+        notes = read_notes_file(review["notesFile"], base, problems)
+        if notes:
+            attributes["notes"] = notes
+    unknown = sorted(set(review) - {"demoAccountRequired", "notes", "notesFile"})
     if unknown:
         problems.append(
             f"review に知らない項目があります: {', '.join(unknown)}"
@@ -277,11 +301,15 @@ def load(path: Path) -> tuple[dict, list[str]]:
         "categories": load_categories(raw, problems),
         "contentRights": raw.get("contentRightsDeclaration"),
         "ageRating": load_age_rating(raw.get("ageRating"), problems),
-        "review": load_review(raw.get("review"), problems),
+        "review": load_review(raw.get("review"), problems, path.parent),
         "pricing": load_pricing(raw.get("pricing"), problems),
         "availability": load_availability(raw.get("availability"), problems),
         "placeholders": placeholders(raw),
     }
+    # notesFile のメモは JSON の外にあるので、仮の値（TODO:）は別に探す
+    if isinstance(raw.get("review"), dict) and "notesFile" in raw["review"] \
+            and "TODO:" in config["review"].get("notes", ""):
+        config["placeholders"].append(f"review.notesFile（{raw['review']['notesFile']}）")
     if config["contentRights"] not in CONTENT_RIGHTS:
         problems.append(f"contentRightsDeclaration は {' / '.join(CONTENT_RIGHTS)} のどちらかで書く")
     return config, [f"{path}: {problem}" for problem in problems]
@@ -586,6 +614,8 @@ def main() -> int:
         print(f"  コンテンツの権利: {config['contentRights']}")
         print(f"  年齢制限: {len(config['ageRating'])} 項目")
         print(f"  審査の情報: {', '.join(config['review']) or 'なし'}（連絡先は環境変数から）")
+        if "notes" in config["review"]:
+            print(f"  審査のメモ: {len(config['review']['notes'])} / {REVIEW_NOTES_LIMIT} 字")
         print(f"  価格: {'無料（未設定のときだけ）' if config['pricing'] else '書き込まない'}")
         print(f"  配信状況: {'未設定のときだけ' if config['availability'] else '書き込まない'}")
         print("問題なし")
@@ -646,6 +676,7 @@ def main() -> int:
     # アプリの作成は、済んでいなければ find_app で先に止まるので載せない
     reminders.extend([
         "App のプライバシー（収集するデータの申告。API が無いので、いつも App Store Connect で入力する）",
+        "App Review に関する情報の添付ファイル（実機の画面収録。最初の審査では求められることが多い）",
         "ビルドの選択と審査への提出",
         "デジタルサービス法（EU）の取引業者の情報（アカウントで一度だけ。登録済みなら不要）",
     ])

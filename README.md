@@ -208,7 +208,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 | カテゴリ | `primaryCategory`（必須）・`secondaryCategory`・`primarySubcategories` / `secondarySubcategories` | カテゴリの ID（`UTILITIES` など）で書きます。ID が違えば、使える一覧を出して書き込む前に止まります。カテゴリを変えたときは、書いていない古いサブカテゴリを App Store Connect からも外します |
 | コンテンツの権利 | `contentRightsDeclaration` | 第三者のコンテンツを使わないなら `DOES_NOT_USE_THIRD_PARTY_CONTENT` |
 | 年齢制限 | `ageRating` | 質問ごとの回答。テンプレートはすべて「なし」（4+）なので、広告（`advertising`）・ほかの人の投稿（`userGeneratedContent`）などをアプリに合わせて見直します。質問が漏れていると PR の検査で落ちます |
-| App Review に関する情報 | `review`（`demoAccountRequired`・`notes`） | 連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |
+| App Review に関する情報 | `review`（`demoAccountRequired`・`notesFile` か `notes`） | メモは `notesFile` に書いたファイル（既定は [AppStore/review_notes.txt](AppStore/review_notes.txt)）の英文を書き込みます。連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |
 | 価格 | `pricing` | **App Store Connect で未設定のときだけ**無料にします。設定済みなら触りません |
 | 配信状況 | `availability` | **App Store Connect で未設定のときだけ**、すべての国と地域（`"ALL"`）か指定した国と地域で配信します。設定済みなら触りません |
 
@@ -221,6 +221,22 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 | `APP_REVIEW_CONTACT_PHONE` | 審査の連絡先の電話番号（`+81 90 1234 5678` のように国番号から） |
 | `APP_REVIEW_CONTACT_EMAIL` | 審査の連絡先のメールアドレス |
 | `APP_REVIEW_DEMO_ACCOUNT_NAME` / `APP_REVIEW_DEMO_ACCOUNT_PASSWORD` | デモアカウント（`review.demoAccountRequired` が `true` のアプリだけ。リポジトリの Secrets に登録します） |
+
+**審査メモと画面収録**
+
+新しいアプリの最初の審査では、Guideline 2.1 - Information Needed で次の 6 つを求められることが多く、出していないと審査が 1 往復止まります（2026-10 に numer0n-lens-ios で実際に返されました）。
+提出の時点で App Review に関する情報の「メモ」と「添付ファイル」に入れておきます。
+
+1. 実機（最新の OS）で撮った画面収録。アプリの起動から始め、典型的な使い方を見せる。アカウントの登録・ログイン・削除、ユーザーの投稿（通報とブロック）、課金があれば、その流れも映す
+2. アプリの目的・対象ユーザー・解決する課題と価値
+3. 主な機能の使い方（ログイン情報やサンプルファイルが要るならそれも）
+4. 使っている外部サービス（データ提供元・認証・決済・AI など）
+5. 地域による機能や内容の違い（無いならそう書く）
+6. 規制のある業種か、第三者の保護された素材（商標・著作物など）を含むか。含むなら使ってよいことを示す資料
+
+- 2〜6 は [AppStore/review_notes.txt](AppStore/review_notes.txt) の雛形の `TODO:` を英語で書き換え、`Metadata/App Store` でメモに反映します。UI が英語でなければ、ボタンの文言を原文のまま引用し、角括弧で英訳を添えると、審査の担当者が画面と突き合わせられます
+- 1 の画面収録は API で反映しないので、App Store Connect の「App Review に関する情報」の添付ファイルに付けます。撮る前に、審査に出すビルドを TestFlight で実機に入れ、一度削除してから入れ直して初回起動の状態にします。集中モードで通知を止め、ホーム画面からアプリを起動するところから撮ります
+- アプリ名や説明文に他社の商標（番組名・ゲーム名など）を入れるなら、6 で聞かれます。許諾が無ければ Guideline 5.2.1（知的財産）で名前を変えるよう求められることがあるので、名前を決める段階で判断します
 
 **プロダクトページのヘッダーと検索結果**（[App Store asset best practices](https://developer.apple.com/app-store/asset-best-practices/)）
 
@@ -237,6 +253,7 @@ API が無い・アカウントで一度だけ行うなど、ワークフロー�
 | 項目 | 理由・手順 |
 |---|---|
 | アプリの作成（名前・プライマリ言語・バンドル ID・SKU） | API で作れません。「5. App Store Connect にアプリを作成する」の手順で、Upload の Job Summary に出る値で作ります |
+| App Review に関する情報の添付ファイル（実機の画面収録） | API で反映していません。最初の審査では求められることが多いので、上の「審査メモと画面収録」の手順で撮って添付します |
 | App のプライバシー（収集するデータの申告） | API がありません。[IOSTemplateApp/PrivacyInfo.xcprivacy](IOSTemplateApp/PrivacyInfo.xcprivacy) とプライバシーポリシーに合わせて「App のプライバシー」で答え、公開します |
 | ビルドの選択と審査への提出 | リリースの判断なので人が行います。輸出コンプライアンスは [IOSTemplateApp/Info.plist](IOSTemplateApp/Info.plist) の `ITSAppUsesNonExemptEncryption`（`false`）で申告済みなので、聞かれません |
 | デジタルサービス法（EU）の取引業者の情報 | アプリごとではなくアカウントで一度だけ行います（「ビジネス」）。登録済みなら不要です |
