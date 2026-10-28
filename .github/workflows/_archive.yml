@@ -73,6 +73,31 @@ jobs:
             -archivePath "$RUNNER_TEMP/build.xcarchive" \
             CODE_SIGNING_ALLOWED=NO
 
+      - name: Fix signatures of stub frameworks
+        # 静的な xcframework（Firebase・Google Mobile Ads など）は、同梱するときに Xcode がバイナリを外して空のスタブを差し込む（Injecting stub binary into codeless framework）。
+        # スタブはリンカーの仮の署名のままで識別子が `arm64-apple` になっていて、署名なしの Archive では Xcode の署名で直らない。
+        # Export はこの識別子のまま再署名するので、App Store Connect が Invalid Signature で弾く。
+        # Info.plist の CFBundleIdentifier と識別子が違うフレームワークを、その識別子でアドホック署名し直しておく（本番の署名は Export がする）
+        run: |
+          app_path=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$RUNNER_TEMP/build.xcarchive/Info.plist")
+          frameworks="$RUNNER_TEMP/build.xcarchive/Products/$app_path/Frameworks"
+          if [[ ! -d "$frameworks" ]]; then
+            echo "同梱のフレームワークはありません"
+            exit 0
+          fi
+          fixed=0
+          for framework in "$frameworks"/*.framework; do
+            [[ -e "$framework" ]] || continue
+            bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$framework/Info.plist")
+            identifier=$(codesign -dv "$framework" 2>&1 | sed -n 's/^Identifier=//p')
+            if [[ "$identifier" != "$bundle_id" ]]; then
+              codesign --force --sign - --identifier "$bundle_id" "$framework"
+              echo "$(basename "$framework"): 署名の識別子を ${identifier:-（署名なし）} から $bundle_id に直しました"
+              fixed=$((fixed + 1))
+            fi
+          done
+          echo "署名の識別子を直したフレームワーク: ${fixed} 個"
+
       - name: Create ExportOptions.plist and API private key
         # Secrets はシェル展開ではなく env 経由で渡す
         env:
