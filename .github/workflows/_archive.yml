@@ -30,6 +30,9 @@ on:
       APPLE_API_ISSUER_ID:
         description: App Store Connect API Key の Issuer ID
         required: true
+      TESTFLIGHT_INTERNAL_TESTERS:
+        description: TestFlight の内部テスターにする人のメールアドレス（カンマ区切り。未登録なら内部テスターの設定を省く）
+        required: false
 
 jobs:
   archive:
@@ -145,16 +148,22 @@ jobs:
             ruby .github/scripts/check-app-store-app.rb
 
       - name: Set up TestFlight internal testers
-        # 内部テストグループ（すべてのビルドを自動配信）を用意し、変数 TESTFLIGHT_INTERNAL_TESTERS のメールアドレスを内部テスターに入れる。
+        # 内部テストグループ（すべてのビルドを自動配信）を用意し、Secret TESTFLIGHT_INTERNAL_TESTERS のメールアドレスを内部テスターに入れる。
         # アップロードより前に済ませておくと、このあとのビルドも処理が終わりしだい配信される。2 回目以降は確認だけで何もしない。
-        # テスターの設定に失敗してもアップロードは止めない（Job Summary と注釈で知らせる）
+        # テスターの設定に失敗してもアップロードは止めない（Job Summary と注釈で知らせる）。
+        # メールアドレスは変数から渡さない。ステップの env の表示で、変数の値はそのまま、Secret の値は *** でログに出る（public リポジトリのログは誰でも見られる）。
+        # 以前の変数 TESTFLIGHT_INTERNAL_TESTERS は値を読まず、残っているかだけを見て Secret に移すよう知らせる
         if: ${{ inputs.upload }}
         continue-on-error: true
         env:
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          TESTERS: ${{ vars.TESTFLIGHT_INTERNAL_TESTERS }}
+          TESTERS: ${{ secrets.TESTFLIGHT_INTERNAL_TESTERS }}
+          TESTERS_VARIABLE_SET: ${{ vars.TESTFLIGHT_INTERNAL_TESTERS != '' }}
         run: |
+          if [ -z "$TESTERS" ] && [ "$TESTERS_VARIABLE_SET" = true ]; then
+            echo "::warning::変数 TESTFLIGHT_INTERNAL_TESTERS は読みません（変数の値はログに出るため）。値を同じ名前の Secret に移してください（README の「TestFlight の内部テスター」）"
+          fi
           BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$RUNNER_TEMP/build.xcarchive/Info.plist") \
             ruby .github/scripts/ensure-internal-testers.rb
 
