@@ -74,12 +74,16 @@ def group_tester_emails(group_id:, token:)
   json.fetch('data').map { |tester| tester.dig('attributes', 'email').to_s.downcase }
 end
 
+# 同じメールアドレスの既存のテスターを返す（無ければ nil）。filter が完全一致でない場合に備えて、アドレスが一致するものだけを見る
+def find_beta_tester(email:, token:)
+  ASC.request(:get, '/v1/betaTesters', token: token, query: { 'filter[email]' => email, 'limit' => 200 })
+     .fetch('data')
+     .find { |tester| tester.dig('attributes', 'email').to_s.casecmp?(email) }
+end
+
 # 他のアプリで既にテスターになっている人は、新しく作らずに既存のテスターをグループに入れる
 def add_tester(email:, group_id:, token:)
-  existing = ASC.request(:get, '/v1/betaTesters', token: token,
-                                                  query: { 'filter[email]' => email, 'fields[betaTesters]' => 'email', 'limit' => 200 })
-                .fetch('data')
-                .find { |tester| tester.dig('attributes', 'email').to_s.casecmp?(email) }
+  existing = find_beta_tester(email: email, token: token)
 
   if existing
     ASC.request(:post, "/v1/betaGroups/#{group_id}/relationships/betaTesters", token: token,
