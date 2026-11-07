@@ -126,9 +126,9 @@ def tester_hints(email:, app_id:, token:)
     tester = find_beta_tester(email: email, token: token)
     next 'なし' unless tester
 
-    attributes = tester.fetch('attributes', {}).reject { |key, _| PERSONAL_ATTRIBUTES.include?(key) }
-    values = attributes.map { |key, value| "#{key}: #{value.is_a?(Array) ? "#{value.size} 件" : value.inspect}" }
-    values.empty? ? 'あり' : "あり（#{values.join('、')}）"
+    # 値（state・inviteType など）は出さず、項目の名前だけにする。伏せた表記から本人が分かると、その人の状態が public のログに出るため
+    names = tester.fetch('attributes', {}).keys - PERSONAL_ATTRIBUTES
+    names.empty? ? 'あり' : "あり（項目: #{names.join('・')}）"
   end
   return [record] unless tester
 
