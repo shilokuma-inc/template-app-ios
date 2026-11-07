@@ -16,6 +16,8 @@
 # *** になるよう、各アドレスを ::add-mask:: にもかける。GitHub Actions では TESTERS を Secret から渡す
 # （変数から渡すと、ステップの env の表示でログに出る）。
 #
+# 追加できなかった人は、原因を追う手がかり（テスターの記録・入っているグループ・App Store Connect のユーザーか）も出す。
+#
 # 使い方（環境変数で渡す）:
 #   BUNDLE_ID=jp.shilokuma.MyApp TESTERS='me@example.com, you@example.com' \
 #   API_KEY_PATH=AuthKey_XXXXXXXXXX.p8 APPLE_API_KEY_ID=XXXXXXXXXX APPLE_API_ISSUER_ID=xxxxxxxx-... \
@@ -100,6 +102,85 @@ def add_tester(email:, group_id:, token:)
   end
 end
 
+# 追加できなかったときに、原因を追う手がかりを集める（409 の応答には理由が書かれない）。
+# メールアドレス・氏名は出さない。ほかのアプリのグループは、名前を出さず数だけにする（公開前のアプリの名前が出ないように）
+def failure_hints(email:, app_id:, token:)
+  tester_hints(email: email, app_id: app_id, token: token) + user_hints(email: email, app_id: app_id, token: token)
+end
+
+# 「見出し: 中身」の 1 行にする。手がかりの取得に失敗しても止めず（API キーの権限が足りない・応答の形が違うなど）、その旨を書く
+def hint(label)
+  "#{label}: #{yield}"
+rescue ASC::Error => e
+  "#{label}: 取得できませんでした（HTTP #{e.status}）"
+rescue StandardError => e
+  "#{label}: 取得できませんでした（#{e.class}）"
+end
+
+PERSONAL_ATTRIBUTES = %w[email firstName lastName].freeze
+
+def tester_hints(email:, app_id:, token:)
+  tester = nil
+  record = hint('テスターの記録') do
+    tester = find_beta_tester(email: email, token: token)
+    next 'なし' unless tester
+
+    attributes = tester.fetch('attributes', {}).reject { |key, _| PERSONAL_ATTRIBUTES.include?(key) }
+    values = attributes.map { |key, value| "#{key}: #{value.is_a?(Array) ? "#{value.size} 件" : value.inspect}" }
+    values.empty? ? 'あり' : "あり（#{values.join('、')}）"
+  end
+  return [record] unless tester
+
+  groups = hint('テスターが入っているグループ') do
+    app_groups = ASC.request(:get, '/v1/betaGroups', token: token,
+                                                     query: { 'filter[app]' => app_id, 'fields[betaGroups]' => 'name,isInternalGroup', 'limit' => 200 })
+                    .fetch('data').map { |group| group.fetch('id') }
+    tester_groups = ASC.request(:get, "/v1/betaTesters/#{tester.fetch('id')}/betaGroups", token: token,
+                                                                                        query: { 'fields[betaGroups]' => 'name,isInternalGroup', 'limit' => 200 })
+                       .fetch('data')
+    mine, others = tester_groups.partition { |group| app_groups.include?(group.fetch('id')) }
+    names = mine.map { |group| "「#{group.dig('attributes', 'name')}」（#{group.dig('attributes', 'isInternalGroup') ? '内部' : '外部'}）" }
+    "このアプリは#{names.empty? ? 'なし' : names.join('・')}、ほかのアプリは #{others.size} 件"
+  end
+  apps = hint('テスターが入っているアプリ') do
+    tester_apps = ASC.request(:get, "/v1/betaTesters/#{tester.fetch('id')}/apps", token: token,
+                                                                                query: { 'fields[apps]' => 'bundleId', 'limit' => 200 })
+                     .fetch('data')
+    "#{tester_apps.size} 件（このアプリを#{tester_apps.any? { |app| app.fetch('id') == app_id } ? '含む' : '含まない'}）"
+  end
+  [record, groups, apps]
+end
+
+def user_hints(email:, app_id:, token:)
+  user_line = hint('App Store Connect のユーザー') do
+    user = ASC.request(:get, '/v1/users', token: token, query: {
+                         'filter[username]' => email, 'fields[users]' => 'username,roles,allAppsVisible,provisioningAllowed', 'limit' => 200
+                       })
+              .fetch('data')
+              .find { |candidate| candidate.dig('attributes', 'username').to_s.casecmp?(email) }
+    next 'なし（このアドレスを Apple ID にしたユーザーが「ユーザとアクセス」に無い）' unless user
+
+    attributes = user.fetch('attributes')
+    visibility = if attributes['allAppsVisible']
+                   'すべてのアプリを見られる'
+                 else
+                   visible = ASC.request(:get, "/v1/users/#{user.fetch('id')}/visibleApps", token: token,
+                                                                                            query: { 'fields[apps]' => 'bundleId', 'limit' => 200 })
+                                .fetch('data').any? { |app| app.fetch('id') == app_id }
+                   visible ? 'このアプリを見られる' : 'このアプリを見られない'
+                 end
+    "あり（ロール: #{Array(attributes['roles']).join('・')}、#{visibility}、provisioningAllowed: #{attributes['provisioningAllowed'].inspect}）"
+  end
+  invitation_line = hint('「ユーザとアクセス」の招待') do
+    invitations = ASC.request(:get, '/v1/userInvitations', token: token,
+                                                           query: { 'filter[email]' => email, 'fields[userInvitations]' => 'email', 'limit' => 200 })
+                     .fetch('data')
+                     .select { |invitation| invitation.dig('attributes', 'email').to_s.casecmp?(email) }
+    invitations.empty? ? 'なし' : "#{invitations.size} 件（承諾されていない招待がある）"
+  end
+  [user_line, invitation_line]
+end
+
 bundle_id = ASC.env!('BUNDLE_ID')
 group_name = ENV.fetch('GROUP_NAME', '').then { |name| name.empty? ? 'Internal Testers' : name }
 # 何件目かは TESTERS に書いた順（重なりを除く前の位置）で数え、書いた値と突き合わせやすくする
@@ -146,6 +227,9 @@ begin
       failures << tester[:label]
       lines << "- #{tester[:label]}を追加できませんでした（HTTP #{e.status}）。App Store Connect の「ユーザとアクセス」に登録されているメールアドレスか確認してください"
       puts "#{tester[:label]}: #{redact(e.message, testers)}"
+      failure_hints(email: tester[:email], app_id: app.fetch('id'), token: token).each do |line|
+        lines << "  - #{redact(line, testers)}"
+      end
     end
   end
 rescue ASC::Error => e
