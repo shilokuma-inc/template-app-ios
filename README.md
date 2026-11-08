@@ -215,7 +215,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 | コンテンツの権利 | `contentRightsDeclaration` | 第三者のコンテンツを使わないなら `DOES_NOT_USE_THIRD_PARTY_CONTENT` |
 | 年齢制限 | `ageRating` | 質問ごとの回答。テンプレートはすべて「なし」（4+）なので、広告（`advertising`）・ほかの人の投稿（`userGeneratedContent`）などをアプリに合わせて見直します。`Tools/upload_app_info.py` の一覧にある質問が JSON に無いと PR の検査で落ちます。Apple が足した質問は検査では分からないので、審査に出す前に App Store Connect で未回答の質問が無いかを見ます |
 | App Review に関する情報 | `review`（`demoAccountRequired`・`notesFile` か `notes`） | メモは `notesFile` に書いたファイル（既定は [AppStore/review_notes.txt](AppStore/review_notes.txt)）の英文を書き込みます。差分のログには、メモの内容を出さず字数だけを出します（App Store Connect にある今のメモに秘密が入っていても、public リポジトリのログに残らないようにするため）。連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |
-| リリースの方法 | `release`（`releaseType`・`phasedRelease`） | バージョンごとに、`MANUAL`（承認後に手動でリリース）か `AFTER_APPROVAL`（承認されたら自動でリリース）と、段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかを書き込みます。日時を指定するリリースと、始まった段階的リリースは扱いません（App Store Connect の画面で操作します） |
+| リリースの方法 | `release`（`releaseType`・`phasedRelease`。任意） | 省略すると App Store Connect の値を残します（テンプレートでは省略。既存のアプリに取り込んだときに、手動のリリースが自動に変わらないようにするため）。書くと、バージョンごとに、`MANUAL`（承認後に手動でリリース）か `AFTER_APPROVAL`（承認されたら自動でリリース）と、段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかを書き込みます。日時を指定するリリースと、始まった段階的リリースは扱いません（App Store Connect の画面で操作します） |
 | 価格 | `pricing` | **App Store Connect で未設定のときだけ**無料にします。設定済みなら触りません |
 | 配信状況 | `availability` | **App Store Connect で未設定のときだけ**、すべての国と地域（`"ALL"`）か指定した国と地域で配信します。設定済みなら触りません |
 

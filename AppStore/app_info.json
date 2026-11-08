@@ -10,7 +10,7 @@
     "review は App Review に関する情報。notesFile（app_info.json からの相対パス）の英文を審査のメモとして書き込む（上限 4000 字）。最初の審査で求められる 6 項目（目的・使い方・外部サービスなど）の雛形が review_notes.txt にあるので、TODO: を書き換える。短いメモなら notesFile の代わりに notes に直接書いてもよい（片方だけ）。",
     "  ログインしないと使えない機能があるなら demoAccountRequired を true にし、メモに試し方を書く。実機の画面収録は API で反映しないので、App Store Connect の添付ファイルに付ける。",
     "  連絡先（氏名・電話番号・メールアドレス）とデモアカウントは個人情報・秘密なので、ここには書かず Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）で渡す。",
-    "release はリリースの方法（バージョンごと）。releaseType は MANUAL（承認後に手動でリリース）か AFTER_APPROVAL（承認されたら自動でリリース）。phasedRelease は段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかどうか。日時を指定するリリースは App Store Connect の画面で設定し、release を消す。",
+    "release はリリースの方法（バージョンごと。省略すると App Store Connect 側の値を残す）。テンプレートでは省略している（既存のアプリに取り込んだときに、手動のリリースが自動に変わらないようにするため）。管理するなら {\"releaseType\": \"AFTER_APPROVAL\", \"phasedRelease\": false} のように足す。releaseType は MANUAL（承認後に手動でリリース）か AFTER_APPROVAL（承認されたら自動でリリース）。phasedRelease は段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかどうか。日時を指定するリリースは App Store Connect の画面で設定する。",
     "pricing / availability は、App Store Connect で未設定のとき（最初のリリースの前）だけ書き込む。設定済みなら触らないので、価格や配信先を変えるときは App Store Connect の画面で行う。",
     "  pricing.price は FREE だけ書ける（有料のアプリは App Store Connect で設定し、pricing を消す）。availability.territories は ALL（すべての国と地域）か、[\"JPN\"] のような 3 文字のコードの配列。"
   ],
@@ -44,10 +44,6 @@
   "review": {
     "demoAccountRequired": false,
     "notesFile": "review_notes.txt"
-  },
-  "release": {
-    "releaseType": "AFTER_APPROVAL",
-    "phasedRelease": false
   },
   "pricing": {
     "price": "FREE",
