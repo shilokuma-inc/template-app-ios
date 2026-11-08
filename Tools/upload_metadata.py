@@ -19,6 +19,7 @@
     APP_STORE_CONNECT_KEY_ID / APP_STORE_CONNECT_ISSUER_ID / APP_STORE_CONNECT_PRIVATE_KEY_PATH
 
 触るのは **編集できる状態のバージョンと App 情報だけ**。審査中や配信済みのバージョンは対象にしない。
+--dry-run は、編集できるバージョンが無ければ、審査中・配信中のバージョンと App 情報の今の値と比べる（書き込みはしない）。
 JSON に書いていない項目（例: 省略した promotionalText）は App Store Connect 側の値をそのまま残す。
 最新情報（whatsNew）はバージョンごとの文言なので、JSON の `whatsNew.version` が反映先のバージョンと
 一致するときだけ書き込む（前のバージョンの文言を次のバージョンに載せてしまわないため）。
@@ -268,13 +269,17 @@ def main() -> int:
     )
 
     app = client.find_app(args.bundle_id or bundle_id())
-    version = client.find_version(app["id"], args.app_version)
+    # dry-run は、編集できるバージョンが無くても審査中・配信中の値と比べる（JSON と App Store Connect のずれを見るため）
+    version = client.find_version(app["id"], args.app_version, reference=args.dry_run)
     version_string = version["attributes"]["versionString"]
-    app_info = client.find_app_info(app["id"])
+    app_info = client.find_app_info(app["id"], reference=args.dry_run)
     print(f"対象: {app['attributes']['name']} {version_string} "
           f"({version['attributes']['appStoreState']})")
     if args.dry_run:
         print("--dry-run: App Store Connect には何も書き込みません")
+        if not client.is_editable(version):
+            print(f"  注意: 編集できるバージョンが無いので、{version_string} と App 情報"
+                  f"（{app_info['attributes'].get('state')}）の今の値と比べます")
 
     # 最新情報は、書いてあるバージョンが反映先と一致する言語だけに入れる
     for target, attributes in entries:
