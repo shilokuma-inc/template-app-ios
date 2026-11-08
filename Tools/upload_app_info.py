@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・価格と配信状況を App Store Connect に反映する。
+"""App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・リリースの方法・価格と配信状況を App Store Connect に反映する。
 
 `AppStore/app_info.json` を読む。名前・サブタイトル・プライバシーポリシーの URL・著作権は、
 言語ごとの掲載文と一緒に `upload_metadata.py` が反映する。
@@ -14,6 +14,8 @@
     App 情報（appInfos）                              … カテゴリ
     年齢制限（ageRatingDeclarations）                 … 年齢制限の質問への回答
     App Review に関する情報（appStoreReviewDetails）  … 連絡先・メモ・デモアカウント（バージョンごと）
+    バージョン（appStoreVersions）・段階的リリース（appStoreVersionPhasedReleases）
+                                                      … リリースの方法（手動 / 承認後に自動）と段階的リリース（バージョンごと）
     価格（appPriceSchedules）・配信状況（appAvailabilities） … App Store Connect で未設定のときだけ
 
 価格と配信状況は、一度決めたら App Store Connect の画面で変える前提なので、設定済みなら触らない
@@ -122,6 +124,9 @@ DEMO_ACCOUNT_ENV = {
 
 #: ログに値を出さない項目
 HIDDEN_FIELDS = set(CONTACT_ENV) | set(DEMO_ACCOUNT_ENV)
+
+#: リリースの方法。日時を指定するリリース（SCHEDULED）は日時がリリースごとに違うので扱わない
+RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
 
 TERRITORY_PATTERN = re.compile(r"[A-Z]{3}")
 CATEGORY_PATTERN = re.compile(r"[A-Z][A-Z_]*")
@@ -289,6 +294,26 @@ def load_availability(raw, problems: list[str]) -> dict | None:
     return availability
 
 
+def load_release(raw, problems: list[str]) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        problems.append("release はオブジェクトで書く")
+        return None
+    release = without_comment(raw)
+    if release.get("releaseType") not in RELEASE_TYPES:
+        problems.append(
+            f"release.releaseType は {' / '.join(RELEASE_TYPES)} のどちらかで書く"
+            f"（日時を指定するリリースは App Store Connect の画面で設定する）: {release.get('releaseType')!r}"
+        )
+    if not isinstance(release.get("phasedRelease"), bool):
+        problems.append("release.phasedRelease は true か false で書く")
+    unknown = sorted(set(release) - {"releaseType", "phasedRelease"})
+    if unknown:
+        problems.append(f"release に知らない項目があります: {', '.join(unknown)}")
+    return release
+
+
 def load(path: Path) -> tuple[dict, list[str]]:
     if not path.is_file():
         return {}, [f"{path} がありません"]
@@ -305,6 +330,7 @@ def load(path: Path) -> tuple[dict, list[str]]:
         "review": load_review(raw.get("review"), problems, path.parent),
         "pricing": load_pricing(raw.get("pricing"), problems),
         "availability": load_availability(raw.get("availability"), problems),
+        "release": load_release(raw.get("release"), problems),
         "placeholders": placeholders(raw),
     }
     # notesFile のメモは JSON の外にあるので、仮の値（TODO:）は別に探す
@@ -492,6 +518,44 @@ def plan_review(client, version: dict, attributes: dict, reminders: list[str]) -
     )
 
 
+def plan_release_type(client, version: dict, release_type: str) -> Step:
+    label = "リリースの方法"
+    current = version["attributes"].get("releaseType")
+    if current == release_type:
+        return label, [], None
+    return label, [f"    releaseType: {show(current)} → {release_type}"], lambda: client.patch(
+        f"/v1/appStoreVersions/{version['id']}",
+        {"data": {"type": "appStoreVersions", "id": version["id"], "attributes": {"releaseType": release_type}}},
+    )
+
+
+def plan_phased_release(client, version: dict, enabled: bool) -> Step:
+    """段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかどうか。
+
+    使うときは、始まる前の状態（INACTIVE）で作る。始まった段階的リリースは止めたり外したりしない
+    （配信の途中の操作は App Store Connect の画面で行う）。
+    """
+    label = "段階的リリース"
+    current = client.get_or_none(f"/v1/appStoreVersions/{version['id']}/appStoreVersionPhasedRelease")
+    if enabled == (current is not None):
+        return label, [], None
+    if enabled:
+        return label, ["    使わない → 使う"], lambda: client.post(
+            "/v1/appStoreVersionPhasedReleases",
+            {
+                "data": {
+                    "type": "appStoreVersionPhasedReleases",
+                    "attributes": {"phasedReleaseState": "INACTIVE"},
+                    "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version["id"]}}},
+                }
+            },
+        )
+    state = (current.get("attributes") or {}).get("phasedReleaseState")
+    if state != "INACTIVE":
+        return label, [f"    {state} なので触りません（始まった段階的リリースは App Store Connect で操作する）"], None
+    return label, ["    使う → 使わない"], lambda: client.delete(f"/v1/appStoreVersionPhasedReleases/{current['id']}")
+
+
 def plan_pricing(client, app: dict, pricing: dict) -> Step:
     label = "価格"
     schedule = client.get_or_none(f"/v1/apps/{app['id']}/appPriceSchedule")
@@ -619,6 +683,9 @@ def main() -> int:
             print(f"  審査のメモ: {len(config['review']['notes'])} / {REVIEW_NOTES_LIMIT} 字")
         print(f"  価格: {'無料（未設定のときだけ）' if config['pricing'] else '書き込まない'}")
         print(f"  配信状況: {'未設定のときだけ' if config['availability'] else '書き込まない'}")
+        release = config["release"]
+        print(f"  リリース: {release['releaseType']}（段階的リリース: {'使う' if release['phasedRelease'] else '使わない'}）"
+              if release else "  リリース: 書き込まない")
         print("問題なし")
         return 0
 
@@ -661,6 +728,9 @@ def main() -> int:
         plan_age_rating(client, app_info, config["ageRating"]),
         plan_review(client, version, review, reminders),
     ]
+    if config["release"]:
+        steps.append(plan_release_type(client, version, config["release"]["releaseType"]))
+        steps.append(plan_phased_release(client, version, config["release"]["phasedRelease"]))
     if config["pricing"]:
         steps.append(plan_pricing(client, app, config["pricing"]))
     if config["availability"]:
