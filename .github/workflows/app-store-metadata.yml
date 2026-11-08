@@ -45,6 +45,12 @@ on:
 permissions:
   contents: read
 
+# 2 つの実行が同じバージョンに同時に書き込むと、掲載文と App 情報が別々のブランチの値になることがある。
+# ブランチによらず 1 本ずつ流す（実行中のものは取り消さない）
+concurrency:
+  group: app-store-metadata
+  cancel-in-progress: false
+
 jobs:
   metadata:
     name: upload
