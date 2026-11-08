@@ -178,12 +178,13 @@ body=$(gh pr view <番号> --json body -q .body) &&
 
 App Store のプロダクトページに載せるものは、`AppStore/` の JSON を元ネタにして、手動実行のワークフローで App Store Connect に反映します。
 反映先は「編集できる状態のバージョン」だけで、審査中・配信済みのバージョンには触りません。
+`Metadata/App Store` の dry-run は、編集できるバージョンが無ければ審査中・配信中のバージョンと App 情報の値と比べるので（書き込みはしません）、審査中や配信後も JSON とのずれを確かめられます。
 どのワークフローも、リポジトリ変数 `ENABLE_DELIVERY=false` のリポジトリ（テンプレート自身など）では反映しません。
 
 | ワークフロー | 反映するもの | 元ネタ | ランナー |
 |---|---|---|---|
 | `Screenshots/App Store` | スクリーンショット（iPhone 6.3 inch / iPhone Duo / iPhone 6.9 inch / iPad 13 inch × 各言語） | `AppStore/screenshots.json` / `AppStore/languages.json` / `AppStore/app.json` | 撮影だけ macOS、縮小と反映は ubuntu |
-| `Metadata/App Store` | 名前・サブタイトル・説明文・キーワード・プロモーションテキスト・最新情報・URL・プライバシーポリシーの URL・著作権、カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・価格と配信状況（既定は dry-run） | `AppStore/metadata/*.json` / `AppStore/app_info.json` | ubuntu |
+| `Metadata/App Store` | 名前・サブタイトル・説明文・キーワード・プロモーションテキスト・最新情報・URL・プライバシーポリシーの URL・著作権、カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・リリースの方法と段階的リリース・価格と配信状況（既定は dry-run） | `AppStore/metadata/*.json` / `AppStore/app_info.json` | ubuntu |
 | `Creative assets/App Store` | プロダクトページのヘッダーと検索結果のクリエイティブアセット（既定は dry-run） | `AppStore/creative_assets.json` / `AppStore/creative/<言語>/` | ubuntu |
 | `Verify/App Store metadata` | PR で、文字数の上限・App 情報の書き方・撮影設定・撮影モードの Scene との対応を検査する | `AppStore/**` | ubuntu |
 
@@ -204,7 +205,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 - 名前（`name`）・サブタイトル（`subtitle`）も言語ごとの JSON に書きます（どちらも 30 字まで）。App Store Connect では「App 情報」の項目で、説明文とは別の場所（`appInfoLocalizations`）に書き込みます。アプリを作ったときの言語（日本語）以外は、App Store Connect に App 情報の言語が無いので、`missing_locales` を `create` にして追加します。追加するには `name` が要ります
 - `shared.json` の `privacyPolicyUrl`（プライバシーポリシーの URL。すべてのアプリで必須）は全言語に、`copyright`（著作権。既定は `© 2026 Takumi Muraishi`）はバージョンに書き込みます。shilokuma のアプリのプライバシーポリシーは [shilokuma-inc/shilokuma-web](https://github.com/shilokuma-inc/shilokuma-web) の `privacy/apps.json` にアプリを足して `https://shilokuma.jp/privacy/<slug>/` に置きます
 
-**App 情報・審査の情報・価格と配信状況**
+**App 情報・審査の情報・リリースの方法・価格と配信状況**
 
 - `AppStore/app_info.json` に書き、`Metadata/App Store` が説明文の後に続けて反映します（`Tools/upload_app_info.py`）
 
@@ -212,8 +213,9 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 |---|---|---|
 | カテゴリ | `primaryCategory`（必須）・`secondaryCategory`・`primarySubcategories` / `secondarySubcategories` | カテゴリの ID（`UTILITIES` など）で書きます。ID が違えば、使える一覧を出して書き込む前に止まります。カテゴリを変えたときは、書いていない古いサブカテゴリを App Store Connect からも外します |
 | コンテンツの権利 | `contentRightsDeclaration` | 第三者のコンテンツを使わないなら `DOES_NOT_USE_THIRD_PARTY_CONTENT` |
-| 年齢制限 | `ageRating` | 質問ごとの回答。テンプレートはすべて「なし」（4+）なので、広告（`advertising`）・ほかの人の投稿（`userGeneratedContent`）などをアプリに合わせて見直します。質問が漏れていると PR の検査で落ちます |
-| App Review に関する情報 | `review`（`demoAccountRequired`・`notesFile` か `notes`） | メモは `notesFile` に書いたファイル（既定は [AppStore/review_notes.txt](AppStore/review_notes.txt)）の英文を書き込みます。連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |
+| 年齢制限 | `ageRating` | 質問ごとの回答。テンプレートはすべて「なし」（4+）なので、広告（`advertising`）・ほかの人の投稿（`userGeneratedContent`）などをアプリに合わせて見直します。`Tools/upload_app_info.py` の一覧にある質問が JSON に無いと PR の検査で落ちます。Apple が足した質問は検査では分からないので、審査に出す前に App Store Connect で未回答の質問が無いかを見ます |
+| App Review に関する情報 | `review`（`demoAccountRequired`・`notesFile` か `notes`） | メモは `notesFile` に書いたファイル（既定は [AppStore/review_notes.txt](AppStore/review_notes.txt)）の英文を書き込みます。差分のログには、メモの内容を出さず字数だけを出します（App Store Connect にある今のメモに秘密が入っていても、public リポジトリのログに残らないようにするため）。連絡先とデモアカウントは JSON に書かず、下の Secrets から渡します。値はログに出しません |
+| リリースの方法 | `release`（`releaseType`・`phasedRelease`） | バージョンごとに、`MANUAL`（承認後に手動でリリース）か `AFTER_APPROVAL`（承認されたら自動でリリース）と、段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかを書き込みます。日時を指定するリリースと、始まった段階的リリースは扱いません（App Store Connect の画面で操作します） |
 | 価格 | `pricing` | **App Store Connect で未設定のときだけ**無料にします。設定済みなら触りません |
 | 配信状況 | `availability` | **App Store Connect で未設定のときだけ**、すべての国と地域（`"ALL"`）か指定した国と地域で配信します。設定済みなら触りません |
 
@@ -260,10 +262,12 @@ API が無い・アカウントで一度だけ行うなど、ワークフロー�
 | アプリの作成（名前・プライマリ言語・バンドル ID・SKU） | API で作れません。「5. App Store Connect にアプリを作成する」の手順で、Upload の Job Summary に出る値で作ります |
 | App Review に関する情報の添付ファイル（実機の画面収録） | API で反映していません。最初の審査では求められることが多いので、上の「審査メモと画面収録」の手順で撮って添付します |
 | App のプライバシー（収集するデータの申告） | API がありません。[IOSTemplateApp/PrivacyInfo.xcprivacy](IOSTemplateApp/PrivacyInfo.xcprivacy) とプライバシーポリシーに合わせて「App のプライバシー」で答え、公開します |
+| 2 つ目以降のバージョンの作成 | 今は App Store Connect の画面で作る運用にしています（「iOS アプリ」の＋）。作らずに `Metadata/App Store` を流すと「編集できる状態のバージョンがありません」で止まります（dry-run は配信中の値と比べます） |
 | ビルドの選択と審査への提出 | リリースの判断なので人が行います。輸出コンプライアンスは [IOSTemplateApp/Info.plist](IOSTemplateApp/Info.plist) の `ITSAppUsesNonExemptEncryption`（`false`）で申告済みなので、聞かれません |
 | デジタルサービス法（EU）の取引業者の情報 | アプリごとではなくアカウントで一度だけ行います（「ビジネス」）。登録済みなら不要です |
+| App プレビュー（動画。任意） | ワークフローでは反映していません。載せるときは App Store Connect のメディアマネージャで追加します |
 
-流す順は、`Metadata/App Store` を dry-run で実行して Job Summary の差分を確かめ → `dry_run` を外して実行 → 最後に出る「審査に出す前に App Store Connect で入力が要るもの」を App Store Connect で埋める、です。
+流す順は、（2 つ目以降のバージョンでは App Store Connect でバージョンを作ってから）`Metadata/App Store` を dry-run で実行して Job Summary の差分を確かめ → `dry_run` を外して実行 → 最後に出る「審査に出す前に App Store Connect で入力が要るもの」を App Store Connect で埋める、です。
 
 ## 構成
 

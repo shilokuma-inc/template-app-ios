@@ -4,7 +4,7 @@ name: Metadata/App Store
 #
 #   Tools/upload_metadata.py … 名前・サブタイトル・説明文・キーワード・プロモーションテキスト・最新情報・URL・プライバシーポリシーの URL・著作権
 #                              （元ネタは AppStore/metadata/<言語>.json と shared.json）
-#   Tools/upload_app_info.py … カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・価格と配信状況
+#   Tools/upload_app_info.py … カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・リリースの方法・価格と配信状況
 #                              （元ネタは AppStore/app_info.json。価格と配信状況は未設定のときだけ書き込む）
 #
 # App Review に関する情報の連絡先・デモアカウントは JSON に置かず、Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）から渡す。
@@ -17,6 +17,7 @@ name: Metadata/App Store
 #
 # 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
 # dry_run にすると、App Store Connect の現在値との差分だけを出して何も書き込まない。
+# 編集できるバージョンが無いときの dry-run は、審査中・配信中のバージョンと App 情報の値と比べる。
 
 on:
   workflow_dispatch:
