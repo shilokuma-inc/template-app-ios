@@ -62,10 +62,27 @@ jobs:
       - name: Verify metadata
         env:
           LANGUAGES: ${{ inputs.languages }}
+          APP_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APP_REVIEW_CONTACT_FIRST_NAME }}
+          APP_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APP_REVIEW_CONTACT_LAST_NAME }}
+          APP_REVIEW_CONTACT_PHONE: ${{ secrets.APP_REVIEW_CONTACT_PHONE }}
+          APP_REVIEW_CONTACT_EMAIL: ${{ secrets.APP_REVIEW_CONTACT_EMAIL }}
         run: |
           set -euo pipefail
           python3 Tools/upload_metadata.py --check --languages "$LANGUAGES"
           python3 Tools/upload_app_info.py --check
+
+          # 連絡先の Secrets が一部だけだと、掲載文を書き込んだあとで App 情報の反映が止まり、半端に反映される。
+          # 書き込む前に、4 つそろっているか、すべて無いかを確かめる
+          contacts=0
+          for name in APP_REVIEW_CONTACT_FIRST_NAME APP_REVIEW_CONTACT_LAST_NAME APP_REVIEW_CONTACT_PHONE APP_REVIEW_CONTACT_EMAIL; do
+            if [ -n "${!name}" ]; then
+              contacts=$((contacts + 1))
+            fi
+          done
+          if [ "${contacts}" -ne 0 ] && [ "${contacts}" -ne 4 ]; then
+            echo "::error::審査の連絡先の Secrets（APP_REVIEW_CONTACT_*）が 4 つのうち ${contacts} つしかありません。4 つそろえるか、すべて外してください"
+            exit 1
+          fi
 
       - name: Create Private Key
         # Secrets はシェル展開ではなく env 経由で渡す
