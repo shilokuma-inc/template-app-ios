@@ -79,10 +79,12 @@ jobs:
           python3 Tools/upload_app_info.py --check
 
           # 連絡先の Secrets が一部だけだと、掲載文を書き込んだあとで App 情報の反映が止まり、半端に反映される。
-          # 書き込む前に、4 つそろっているか、すべて無いかを確かめる
+          # 書き込む前に、4 つそろっているか、すべて無いかを確かめる。
+          # upload_app_info.py と同じく、空白だけの値は「無い」とみなす
           contacts=0
           for name in APP_REVIEW_CONTACT_FIRST_NAME APP_REVIEW_CONTACT_LAST_NAME APP_REVIEW_CONTACT_PHONE APP_REVIEW_CONTACT_EMAIL; do
-            if [ -n "${!name}" ]; then
+            value="${!name}"
+            if [ -n "${value//[[:space:]]/}" ]; then
               contacts=$((contacts + 1))
             fi
           done
