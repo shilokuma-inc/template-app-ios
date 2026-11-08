@@ -22,7 +22,7 @@
 （JSON を書き換えても、配信中のアプリの価格や配信先が変わらないようにするため）。
 
 審査の連絡先とデモアカウントは個人情報・秘密なので JSON には書かず、環境変数で渡す（GitHub Actions では Secrets）。
-値はログに出さない。
+値はログに出さない。審査のメモも、差分には内容を出さず字数だけを出す（今のメモに秘密が入っていることがあるため）。
 
     APP_REVIEW_CONTACT_FIRST_NAME / APP_REVIEW_CONTACT_LAST_NAME / APP_REVIEW_CONTACT_PHONE / APP_REVIEW_CONTACT_EMAIL
     APP_REVIEW_DEMO_ACCOUNT_NAME / APP_REVIEW_DEMO_ACCOUNT_PASSWORD（review.demoAccountRequired が true のときだけ使う）
@@ -124,6 +124,10 @@ DEMO_ACCOUNT_ENV = {
 
 #: ログに値を出さない項目
 HIDDEN_FIELDS = set(CONTACT_ENV) | set(DEMO_ACCOUNT_ENV)
+
+#: 差分に内容を出さず、字数だけを出す項目。public リポジトリの Actions のログは誰でも見られ、
+#: App Store Connect にある今の審査のメモに秘密（審査用のアカウントや URL など）が入っていることがあるため
+CONTENT_HIDDEN_FIELDS = {"notes"}
 
 #: リリースの方法。日時を指定するリリース（SCHEDULED）は日時がリリースごとに違うので扱わない
 RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
@@ -387,6 +391,8 @@ def describe(current: dict, new: dict) -> list[str]:
             continue
         if field in HIDDEN_FIELDS:
             lines.append(f"    {field}: {'（空）' if not before else '（入力済み）'} → （環境変数の値）")
+        elif field in CONTENT_HIDDEN_FIELDS:
+            lines.append(f"    {field}: {f'{len(before)} 字' if before else '（空）'} → {len(value)} 字（内容はログに出さない）")
         elif isinstance(value, str) and ("\n" in value or "\n" in (before or "")):
             lines.extend(describe_changes({field: before}, {field: value}))
         else:
