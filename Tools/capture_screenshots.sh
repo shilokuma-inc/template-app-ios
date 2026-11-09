@@ -101,15 +101,16 @@ while IFS= read -r -u 3 candidate; do
     fi
     UDID=""
 done 3< <($CONFIG devices "$DISPLAY_TYPE")
-# 変数名の直後に全角文字が続くと、macOS の bash 3.2 はロケールによって全角文字の先頭バイトを変数名の一部と見なす
-# （unbound variable になる。GitHub Actions のランナーで再現）ので、必ず波括弧で閉じる
-echo "ランタイム: ${RUNTIME_ID}（SDK ${SDK_VERSION}）"
 
 if [ -z "$UDID" ]; then
     echo "$DISPLAY_TYPE 向けの Simulator を作れませんでした。AppStore/screenshots.json の devices を見直してください。" >&2
     xcrun simctl list devicetypes >&2 || true
     exit 1
 fi
+
+# 変数名の直後に全角文字が続くと、macOS の bash 3.2 はロケールによって全角文字の先頭バイトを変数名の一部と見なす
+# （unbound variable になる。GitHub Actions のランナーで再現）ので、必ず波括弧で閉じる
+echo "ランタイム: ${RUNTIME_ID}（SDK ${SDK_VERSION}）"
 
 cleanup() {
     xcrun simctl shutdown "$UDID" 2>/dev/null || true
