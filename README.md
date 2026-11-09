@@ -196,6 +196,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 - 撮るのはリリースのときだけです。`release/**` ブランチを選んで手動実行します（それ以外のブランチでは止まります）
 - macOS ランナーの枠を開発のビルドと取り合わないよう、撮影は 1 本ずつ流します。6.3 inch（`deriveFrom`）は撮らずに 6.9 inch を ubuntu で縮めて作り、App Store Connect への反映も ubuntu で行います
 - iPhone Duo は Xcode 27.1 と iOS 27.1 のランタイムが要るので、`xcode-27` のランナーで撮ります（`screenshots.json` の `runsOn` / `xcodeVersion`）
+- Simulator のランタイムは、機種ごとに「その機種に対応したもののうち、ビルドする SDK 以下で一番新しいもの」を選びます（iOS 27.1 のランタイムは iPhone Duo にしか対応しないので、Xcode 27.1 でもほかの機種は iOS 27.0 などで撮ります）
 - 手元で撮るなら `Tools/capture_screenshots.sh APP_IPHONE_67 ja`（出力は `build/screenshots/`）
 
 **名前・説明文・最新情報**
