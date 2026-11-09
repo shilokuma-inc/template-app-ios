@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・価格と配信状況を App Store Connect に反映する。
+"""App 情報（カテゴリ・コンテンツの権利・年齢制限）・App Review に関する情報・リリースの方法・価格と配信状況を App Store Connect に反映する。
 
 `AppStore/app_info.json` を読む。名前・サブタイトル・プライバシーポリシーの URL・著作権は、
 言語ごとの掲載文と一緒に `upload_metadata.py` が反映する。
@@ -14,13 +14,15 @@
     App 情報（appInfos）                              … カテゴリ
     年齢制限（ageRatingDeclarations）                 … 年齢制限の質問への回答
     App Review に関する情報（appStoreReviewDetails）  … 連絡先・メモ・デモアカウント（バージョンごと）
+    バージョン（appStoreVersions）・段階的リリース（appStoreVersionPhasedReleases）
+                                                      … リリースの方法（手動 / 承認後に自動）と段階的リリース（バージョンごと）
     価格（appPriceSchedules）・配信状況（appAvailabilities） … App Store Connect で未設定のときだけ
 
 価格と配信状況は、一度決めたら App Store Connect の画面で変える前提なので、設定済みなら触らない
 （JSON を書き換えても、配信中のアプリの価格や配信先が変わらないようにするため）。
 
 審査の連絡先とデモアカウントは個人情報・秘密なので JSON には書かず、環境変数で渡す（GitHub Actions では Secrets）。
-値はログに出さない。
+値はログに出さない。審査のメモも、差分には内容を出さず字数だけを出す（今のメモに秘密が入っていることがあるため）。
 
     APP_REVIEW_CONTACT_FIRST_NAME / APP_REVIEW_CONTACT_LAST_NAME / APP_REVIEW_CONTACT_PHONE / APP_REVIEW_CONTACT_EMAIL
     APP_REVIEW_DEMO_ACCOUNT_NAME / APP_REVIEW_DEMO_ACCOUNT_PASSWORD（review.demoAccountRequired が true のときだけ使う）
@@ -32,6 +34,7 @@
     APP_STORE_CONNECT_KEY_ID / APP_STORE_CONNECT_ISSUER_ID / APP_STORE_CONNECT_PRIVATE_KEY_PATH
 
 触るのは **編集できる状態のバージョンと App 情報だけ**。JSON に書いていない項目は App Store Connect 側の値をそのまま残す。
+--dry-run は、編集できるバージョンが無ければ、審査中・配信中のバージョンと App 情報の今の値と比べる（書き込みはしない）。
 
 PyJWT が要る（--check では不要）: `python3 -m pip install pyjwt cryptography`
 """
@@ -121,6 +124,13 @@ DEMO_ACCOUNT_ENV = {
 
 #: ログに値を出さない項目
 HIDDEN_FIELDS = set(CONTACT_ENV) | set(DEMO_ACCOUNT_ENV)
+
+#: 差分に内容を出さず、字数だけを出す項目。public リポジトリの Actions のログは誰でも見られ、
+#: App Store Connect にある今の審査のメモに秘密（審査用のアカウントや URL など）が入っていることがあるため
+CONTENT_HIDDEN_FIELDS = {"notes"}
+
+#: リリースの方法。日時を指定するリリース（SCHEDULED）は日時がリリースごとに違うので扱わない
+RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
 
 TERRITORY_PATTERN = re.compile(r"[A-Z]{3}")
 CATEGORY_PATTERN = re.compile(r"[A-Z][A-Z_]*")
@@ -288,6 +298,26 @@ def load_availability(raw, problems: list[str]) -> dict | None:
     return availability
 
 
+def load_release(raw, problems: list[str]) -> dict | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        problems.append("release はオブジェクトで書く")
+        return None
+    release = without_comment(raw)
+    if release.get("releaseType") not in RELEASE_TYPES:
+        problems.append(
+            f"release.releaseType は {' / '.join(RELEASE_TYPES)} のどちらかで書く"
+            f"（日時を指定するリリースは App Store Connect の画面で設定する）: {release.get('releaseType')!r}"
+        )
+    if not isinstance(release.get("phasedRelease"), bool):
+        problems.append("release.phasedRelease は true か false で書く")
+    unknown = sorted(set(release) - {"releaseType", "phasedRelease"})
+    if unknown:
+        problems.append(f"release に知らない項目があります: {', '.join(unknown)}")
+    return release
+
+
 def load(path: Path) -> tuple[dict, list[str]]:
     if not path.is_file():
         return {}, [f"{path} がありません"]
@@ -304,6 +334,7 @@ def load(path: Path) -> tuple[dict, list[str]]:
         "review": load_review(raw.get("review"), problems, path.parent),
         "pricing": load_pricing(raw.get("pricing"), problems),
         "availability": load_availability(raw.get("availability"), problems),
+        "release": load_release(raw.get("release"), problems),
         "placeholders": placeholders(raw),
     }
     # notesFile のメモは JSON の外にあるので、仮の値（TODO:）は別に探す
@@ -360,6 +391,8 @@ def describe(current: dict, new: dict) -> list[str]:
             continue
         if field in HIDDEN_FIELDS:
             lines.append(f"    {field}: {'（空）' if not before else '（入力済み）'} → （環境変数の値）")
+        elif field in CONTENT_HIDDEN_FIELDS:
+            lines.append(f"    {field}: {f'{len(before)} 字' if before else '（空）'} → {len(value)} 字（内容はログに出さない）")
         elif isinstance(value, str) and ("\n" in value or "\n" in (before or "")):
             lines.extend(describe_changes({field: before}, {field: value}))
         else:
@@ -491,6 +524,44 @@ def plan_review(client, version: dict, attributes: dict, reminders: list[str]) -
     )
 
 
+def plan_release_type(client, version: dict, release_type: str) -> Step:
+    label = "リリースの方法"
+    current = version["attributes"].get("releaseType")
+    if current == release_type:
+        return label, [], None
+    return label, [f"    releaseType: {show(current)} → {release_type}"], lambda: client.patch(
+        f"/v1/appStoreVersions/{version['id']}",
+        {"data": {"type": "appStoreVersions", "id": version["id"], "attributes": {"releaseType": release_type}}},
+    )
+
+
+def plan_phased_release(client, version: dict, enabled: bool) -> Step:
+    """段階的リリース（7 日かけて自動アップデートの対象を広げる）を使うかどうか。
+
+    使うときは、始まる前の状態（INACTIVE）で作る。始まった段階的リリースは止めたり外したりしない
+    （配信の途中の操作は App Store Connect の画面で行う）。
+    """
+    label = "段階的リリース"
+    current = client.get_or_none(f"/v1/appStoreVersions/{version['id']}/appStoreVersionPhasedRelease")
+    if enabled == (current is not None):
+        return label, [], None
+    if enabled:
+        return label, ["    使わない → 使う"], lambda: client.post(
+            "/v1/appStoreVersionPhasedReleases",
+            {
+                "data": {
+                    "type": "appStoreVersionPhasedReleases",
+                    "attributes": {"phasedReleaseState": "INACTIVE"},
+                    "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version["id"]}}},
+                }
+            },
+        )
+    state = (current.get("attributes") or {}).get("phasedReleaseState")
+    if state != "INACTIVE":
+        return label, [f"    {state} なので触りません（始まった段階的リリースは App Store Connect で操作する）"], None
+    return label, ["    使う → 使わない"], lambda: client.delete(f"/v1/appStoreVersionPhasedReleases/{current['id']}")
+
+
 def plan_pricing(client, app: dict, pricing: dict) -> Step:
     label = "価格"
     schedule = client.get_or_none(f"/v1/apps/{app['id']}/appPriceSchedule")
@@ -618,6 +689,9 @@ def main() -> int:
             print(f"  審査のメモ: {len(config['review']['notes'])} / {REVIEW_NOTES_LIMIT} 字")
         print(f"  価格: {'無料（未設定のときだけ）' if config['pricing'] else '書き込まない'}")
         print(f"  配信状況: {'未設定のときだけ' if config['availability'] else '書き込まない'}")
+        release = config["release"]
+        print(f"  リリース: {release['releaseType']}（段階的リリース: {'使う' if release['phasedRelease'] else '使わない'}）"
+              if release else "  リリース: 書き込まない")
         print("問題なし")
         return 0
 
@@ -638,12 +712,16 @@ def main() -> int:
     )
 
     app = client.find_app(args.bundle_id or bundle_id())
-    version = client.find_version(app["id"], args.app_version)
-    app_info = client.find_app_info(app["id"])
+    # dry-run は、編集できるバージョンが無くても審査中・配信中の値と比べる（JSON と App Store Connect のずれを見るため）
+    version = client.find_version(app["id"], args.app_version, reference=args.dry_run)
+    app_info = client.find_app_info(app["id"], reference=args.dry_run)
     print(f"対象: {app['attributes']['name']} {version['attributes']['versionString']} "
           f"({version['attributes']['appStoreState']})")
     if args.dry_run:
         print("--dry-run: App Store Connect には何も書き込みません")
+        if not client.is_editable(version):
+            print(f"  注意: 編集できるバージョンが無いので、{version['attributes']['versionString']} と App 情報"
+                  f"（{app_info['attributes'].get('state')}）の今の値と比べます")
     for notice in notices:
         print(f"  注意: {notice}")
 
@@ -656,6 +734,9 @@ def main() -> int:
         plan_age_rating(client, app_info, config["ageRating"]),
         plan_review(client, version, review, reminders),
     ]
+    if config["release"]:
+        steps.append(plan_release_type(client, version, config["release"]["releaseType"]))
+        steps.append(plan_phased_release(client, version, config["release"]["phasedRelease"]))
     if config["pricing"]:
         steps.append(plan_pricing(client, app, config["pricing"]))
     if config["availability"]:

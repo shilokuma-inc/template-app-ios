@@ -4,7 +4,7 @@ name: Metadata/App Store
 #
 #   Tools/upload_metadata.py … 名前・サブタイトル・説明文・キーワード・プロモーションテキスト・最新情報・URL・プライバシーポリシーの URL・著作権
 #                              （元ネタは AppStore/metadata/<言語>.json と shared.json）
-#   Tools/upload_app_info.py … カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・価格と配信状況
+#   Tools/upload_app_info.py … カテゴリ・コンテンツの権利・年齢制限・App Review に関する情報・リリースの方法・価格と配信状況
 #                              （元ネタは AppStore/app_info.json。価格と配信状況は未設定のときだけ書き込む）
 #
 # App Review に関する情報の連絡先・デモアカウントは JSON に置かず、Secrets（APP_REVIEW_CONTACT_* / APP_REVIEW_DEMO_ACCOUNT_*）から渡す。
@@ -17,6 +17,7 @@ name: Metadata/App Store
 #
 # 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
 # dry_run にすると、App Store Connect の現在値との差分だけを出して何も書き込まない。
+# 編集できるバージョンが無いときの dry-run は、審査中・配信中のバージョンと App 情報の値と比べる。
 
 on:
   workflow_dispatch:
@@ -45,6 +46,12 @@ on:
 permissions:
   contents: read
 
+# 2 つの実行が同じバージョンに同時に書き込むと、掲載文と App 情報が別々のブランチの値になることがある。
+# ブランチによらず 1 本ずつ流す（実行中のものは取り消さない）
+concurrency:
+  group: app-store-metadata
+  cancel-in-progress: false
+
 jobs:
   metadata:
     name: upload
@@ -62,10 +69,29 @@ jobs:
       - name: Verify metadata
         env:
           LANGUAGES: ${{ inputs.languages }}
+          APP_REVIEW_CONTACT_FIRST_NAME: ${{ secrets.APP_REVIEW_CONTACT_FIRST_NAME }}
+          APP_REVIEW_CONTACT_LAST_NAME: ${{ secrets.APP_REVIEW_CONTACT_LAST_NAME }}
+          APP_REVIEW_CONTACT_PHONE: ${{ secrets.APP_REVIEW_CONTACT_PHONE }}
+          APP_REVIEW_CONTACT_EMAIL: ${{ secrets.APP_REVIEW_CONTACT_EMAIL }}
         run: |
           set -euo pipefail
           python3 Tools/upload_metadata.py --check --languages "$LANGUAGES"
           python3 Tools/upload_app_info.py --check
+
+          # 連絡先の Secrets が一部だけだと、掲載文を書き込んだあとで App 情報の反映が止まり、半端に反映される。
+          # 書き込む前に、4 つそろっているか、すべて無いかを確かめる。
+          # upload_app_info.py と同じく、空白だけの値は「無い」とみなす
+          contacts=0
+          for name in APP_REVIEW_CONTACT_FIRST_NAME APP_REVIEW_CONTACT_LAST_NAME APP_REVIEW_CONTACT_PHONE APP_REVIEW_CONTACT_EMAIL; do
+            value="${!name}"
+            if [ -n "${value//[[:space:]]/}" ]; then
+              contacts=$((contacts + 1))
+            fi
+          done
+          if [ "${contacts}" -ne 0 ] && [ "${contacts}" -ne 4 ]; then
+            echo "::error::審査の連絡先の Secrets（APP_REVIEW_CONTACT_*）が 4 つのうち ${contacts} つしかありません。4 つそろえるか、すべて外してください"
+            exit 1
+          fi
 
       - name: Create Private Key
         # Secrets はシェル展開ではなく env 経由で渡す

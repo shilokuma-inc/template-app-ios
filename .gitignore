@@ -95,6 +95,8 @@ iOSInjectionProject/
 # 特に private_keys/ は App Store Connect API の秘密鍵なので必ず除外する。
 ExportOptions.plist
 private_keys/
+# Tools/ の Python スクリプトを手元で動かすとできるキャッシュ
+__pycache__/
 *.xcarchive
 *.xcresult
 *.ipa/

@@ -155,24 +155,39 @@ class AppStoreConnect:
             raise SystemExit(f"bundleId が {bundle_id} のアプリが見つかりません")
         return apps[0]
 
-    def find_version(self, app_id: str, version_string: str | None) -> dict:
-        versions = self.get_all(
+    def versions(self, app_id: str) -> list[dict]:
+        return self.get_all(
             f"/v1/apps/{app_id}/appStoreVersions",
             {"filter[platform]": "IOS", "limit": 50},
         )
-        editable = [v for v in versions if v["attributes"]["appStoreState"] in EDITABLE_STATES]
+
+    @staticmethod
+    def is_editable(version: dict) -> bool:
+        return version["attributes"]["appStoreState"] in EDITABLE_STATES
+
+    def find_version(self, app_id: str, version_string: str | None, reference: bool = False) -> dict:
+        """書き換えられるバージョンを返す。
+
+        `reference` を True にすると（dry-run で使う）、編集できるバージョンが無いときに止めず、
+        いちばん新しいバージョン（審査中・配信中など）を比べる相手として返す。
+        返したバージョンが書き換えられるかは `is_editable` で見る。
+        """
+        versions = self.versions(app_id)
+        editable = [v for v in versions if self.is_editable(v)]
 
         if version_string:
             for version in versions:
                 if version["attributes"]["versionString"] == version_string:
                     state = version["attributes"]["appStoreState"]
-                    if state not in EDITABLE_STATES:
+                    if state not in EDITABLE_STATES and not reference:
                         raise SystemExit(
                             f"バージョン {version_string} は {state} のため編集できません"
                         )
                     return version
             raise SystemExit(f"バージョン {version_string} が見つかりません")
 
+        if not editable and reference and versions:
+            return max(versions, key=lambda v: v["attributes"].get("createdDate") or "")
         if not editable:
             states = ", ".join(sorted({v["attributes"]["appStoreState"] for v in versions}))
             raise SystemExit(
@@ -187,27 +202,35 @@ class AppStoreConnect:
             )
         return editable[0]
 
-    def find_app_info(self, app_id: str) -> dict:
+    def find_app_info(self, app_id: str, reference: bool = False) -> dict:
         """書き換えられる App 情報（appInfos）を返す。
 
         App 情報はバージョンとは別のリソースで、名前・サブタイトル・プライバシーポリシーの URL（言語ごと）と、
         カテゴリ・年齢制限を持つ。次のバージョンを作ると、そのバージョン用の App 情報が「提出準備中」でできる。
+
+        `reference` を True にすると（dry-run で使う）、書き換えられる App 情報が無いときに止めず、
+        審査中のバージョンの App 情報か、無ければ配信中の App 情報を比べる相手として返す。
         """
         infos = self.get_all(f"/v1/apps/{app_id}/appInfos")
 
-        def editable(info: dict) -> bool:
-            attributes = info["attributes"]
-            if attributes.get("state"):
-                return attributes["state"] in EDITABLE_APP_INFO_STATES
+        def state(info: dict) -> str | None:
             # state が無い古い応答では、非推奨の appStoreState（バージョンと同じ値）で見る
-            return attributes.get("appStoreState") in EDITABLE_STATES
+            return info["attributes"].get("state") or info["attributes"].get("appStoreState")
+
+        def editable(info: dict) -> bool:
+            if info["attributes"].get("state"):
+                return info["attributes"]["state"] in EDITABLE_APP_INFO_STATES
+            return info["attributes"].get("appStoreState") in EDITABLE_STATES
 
         candidates = [info for info in infos if editable(info)]
+        if not candidates and reference and infos:
+            # 配信中（READY_FOR_DISTRIBUTION）より、審査中など次のバージョン用のものを優先する
+            live_states = {"READY_FOR_DISTRIBUTION", "READY_FOR_SALE"}
+            live = [info for info in infos if state(info) in live_states]
+            pending = [info for info in infos if state(info) not in live_states | {"REPLACED_WITH_NEW_INFO"}]
+            return (pending or live or infos)[0]
         if not candidates:
-            states = ", ".join(sorted({
-                str(info["attributes"].get("state") or info["attributes"].get("appStoreState"))
-                for info in infos
-            }))
+            states = ", ".join(sorted({str(state(info)) for info in infos}))
             raise SystemExit(
                 "編集できる状態の App 情報がありません"
                 f"（いまある状態: {states or 'なし'}）。"
