@@ -134,6 +134,15 @@ class AppStoreConnect:
             url = page.get("links", {}).get("next")
         return result
 
+    def get_all_or_none(self, path: str, params: dict | None = None) -> list[dict] | None:
+        """get_all と同じく全件を返す。親のリソースがまだ作られていない（404）なら None。"""
+        try:
+            return self.get_all(path, params)
+        except ApiError as error:
+            if error.status == 404:
+                return None
+            raise
+
     def post(self, path: str, payload: dict) -> dict:
         return self._request("POST", f"{API}{path}", payload)
 
