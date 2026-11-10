@@ -81,9 +81,9 @@ while IFS=$'\t' read -r -u 3 language _ _ _; do
         "$REMOVE_ALPHA" "$output"
         actual="$(sips -g pixelWidth -g pixelHeight "$output" | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w "x" h}')"
         if [ "$actual" != "${width}x${height}" ]; then
-            echo "$output の寸法が ${width}x${height} ではありません（$actual）" >&2
+            echo "$output の寸法が ${width}x${height} ではありません（${actual}）" >&2
             exit 1
         fi
-        echo "$output（$actual）"
+        echo "${output}（${actual}）"
     done <<< "$TARGETS"
 done 3< <($CONFIG languages)
