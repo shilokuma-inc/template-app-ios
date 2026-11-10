@@ -51,8 +51,9 @@ TARGETS="header header.png 3840 1646
 search search_results.png 3840 2560"
 
 while IFS=$'\t' read -r -u 3 language _ _ _; do
-    # creative.html の copy に、その言語の文言が無いと崩れた画像になる
-    if ! grep -Eq "^    ${language}: \{" "$SOURCE"; then
+    # creative.html の copy に、その言語の文言が無いと崩れた画像になる。
+    # zh-Hans・pt-BR のようにハイフンを含む言語は、JavaScript のキーを引用符で囲むので、どちらも受け付ける
+    if ! grep -Eq "^    \"?${language}\"?: \{" "$SOURCE"; then
         echo "$SOURCE の copy に $language の文言がありません。" >&2
         exit 1
     fi
@@ -80,9 +81,9 @@ while IFS=$'\t' read -r -u 3 language _ _ _; do
         "$REMOVE_ALPHA" "$output"
         actual="$(sips -g pixelWidth -g pixelHeight "$output" | awk '/pixelWidth/{w=$2} /pixelHeight/{h=$2} END{print w "x" h}')"
         if [ "$actual" != "${width}x${height}" ]; then
-            echo "$output の寸法が ${width}x${height} ではありません（$actual）" >&2
+            echo "$output の寸法が ${width}x${height} ではありません（${actual}）" >&2
             exit 1
         fi
-        echo "$output（$actual）"
+        echo "${output}（${actual}）"
     done <<< "$TARGETS"
 done 3< <($CONFIG languages)
