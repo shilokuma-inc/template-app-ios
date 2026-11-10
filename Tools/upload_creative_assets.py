@@ -298,6 +298,11 @@ def main() -> int:
         default=os.environ.get("APP_STORE_CONNECT_PRIVATE_KEY_PATH"),
         help="App Store Connect API Key の .p8",
     )
+    parser.add_argument(
+        "--reupload-pending",
+        action="store_true",
+        help="前回上げた同じ画像でも、処理中（UPLOAD_COMPLETE）のものは消して上げ直す（Apple 側で処理が止まったとき）",
+    )
     parser.add_argument("--dry-run", action="store_true", help="何も書き換えず、やることだけ出す")
     parser.add_argument("--ref-data", action="store_true", help="置き場所と画像の仕様を出して終わる")
     args = parser.parse_args()
@@ -374,11 +379,13 @@ def main() -> int:
             label = f"{language.language}/{path.name}"
             found = library_images.get(reference_name)
             state = ((found or {}).get("attributes") or {}).get("state")
-            if found and state in REUSABLE_STATES:
+            # --reupload-pending では、処理中のまま止まった画像を使わずに上げ直す
+            retry_states = RETRYABLE_STATES | ({"UPLOAD_COMPLETE"} if args.reupload_pending else set())
+            if found and state in REUSABLE_STATES and state not in retry_states:
                 print(f"  {label}: 前回上げた同じ画像を使う（{state}）")
                 jobs.append((language, asset, path, found["id"]))
                 continue
-            if found and state in RETRYABLE_STATES:
+            if found and state in retry_states:
                 # 転送の途中で止まった・処理に失敗した画像は、消して上げ直す（参照名が空かないと作れない）
                 print(f"  {label}: 前回上げた画像が {state} なので、消して上げ直す")
                 library.delete_image(found["id"])
