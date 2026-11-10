@@ -14,6 +14,8 @@ name: Screenshots/App Store
 #
 # 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
 # upload を外せば撮るだけで、結果は artifact から取れる。
+# 反映だけが失敗したとき（Apple 側の取り込みが遅いなど）は、入力 from_run にその実行の ID を入れると、
+# 撮り直さずにその実行の artifact を反映し直せる。同じ画像が載っている言語は上げ直さず、取り込みの完了を待つだけ。
 
 on:
   workflow_dispatch:
@@ -46,9 +48,15 @@ on:
         description: 'release/** 以外のブランチでも撮る（撮影の仕組みを確かめるときだけ。反映はしない）'
         type: boolean
         default: false
+      from_run:
+        description: '撮らずに、release/** で撮ったこのワークフローの実行（run ID）の artifact を反映する（どのブランチでも）'
+        required: false
+        default: ''
 
 permissions:
   contents: read
+  # from_run で、ほかの実行の artifact を読む
+  actions: read
 
 # 同じリポジトリで撮影が重なると、macOS ランナーを 2 台使ってしまう
 concurrency:
@@ -71,11 +79,36 @@ jobs:
         env:
           REF: ${{ github.ref }}
           ALLOW_NON_RELEASE: ${{ inputs.allow_non_release }}
+          FROM_RUN: ${{ inputs.from_run }}
         run: |
-          if [[ "$REF" != refs/heads/release/* && "$ALLOW_NON_RELEASE" != "true" ]]; then
+          # 前回の実行の画像を反映するときは撮らないので、どのブランチでもよい（release/** で撮ったものか次で確かめる）
+          if [[ "$REF" != refs/heads/release/* && "$ALLOW_NON_RELEASE" != "true" && -z "$FROM_RUN" ]]; then
             echo "::error::スクリーンショットはリリースのときだけ撮ります。release/** ブランチを選んで実行してください（今: $REF）"
             exit 1
           fi
+
+      - name: Check source run
+        id: source
+        if: ${{ inputs.from_run != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM_RUN: ${{ inputs.from_run }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$FROM_RUN" =~ ^[0-9]+$ ]]; then
+            echo "::error::from_run には実行の ID（数字）を入れてください（今: $FROM_RUN）"
+            exit 1
+          fi
+          read -r path branch < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FROM_RUN" --jq '"\(.path) \(.head_branch)"')
+          # 呼び出されたワークフローなどでは path が <ファイル>@<ref> になるので、@ から後ろを外して比べる
+          path="${path%%@*}"
+          # 反映するのは、このワークフローがリリースのときに撮った画像だけ
+          if [[ "$path" != ".github/workflows/app-store-screenshots.yml" || "$branch" != release/* ]]; then
+            echo "::error::from_run は release/** で実行したこのワークフローの ID にしてください（${FROM_RUN}: ${path} / ${branch}）"
+            exit 1
+          fi
+          echo "撮影元: run ${FROM_RUN}（${branch}）"
+          echo "release=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -89,6 +122,7 @@ jobs:
           LANGUAGES: ${{ inputs.languages }}
           REF: ${{ github.ref }}
           UPLOAD: ${{ inputs.upload }}
+          FROM_RELEASE: ${{ steps.source.outputs.release }}
           ENABLE_DELIVERY: ${{ vars.ENABLE_DELIVERY }}
         run: |
           set -euo pipefail
@@ -102,8 +136,10 @@ jobs:
             echo "derive=$(jq -c .derive <<<"$matrix")"
             echo "upload=$(jq -c .upload <<<"$matrix")"
             echo "has_derive=$(jq -r '.derive | length > 0' <<<"$matrix")"
-            # 反映は release/** から実行したときだけ。ENABLE_DELIVERY=false のリポジトリ（テンプレート自身など）は反映しない
-            if [[ "$UPLOAD" == "true" && "$REF" == refs/heads/release/* && "$ENABLE_DELIVERY" != "false" ]]; then
+            # 反映は release/** で撮った画像だけ（release/** から実行したときか、from_run が release/** の実行のとき）。
+            # ENABLE_DELIVERY=false のリポジトリ（テンプレート自身など）は反映しない
+            if [[ "$UPLOAD" == "true" && ( "$REF" == refs/heads/release/* || "$FROM_RELEASE" == "true" ) \
+              && "$ENABLE_DELIVERY" != "false" ]]; then
               echo "should_upload=true"
             else
               echo "should_upload=false"
@@ -113,6 +149,7 @@ jobs:
   capture:
     name: capture (${{ matrix.label }})
     needs: plan
+    if: ${{ inputs.from_run == '' }}
     # runner と Xcode は表示サイズごとに screenshots.json の runsOn / xcodeVersion で決める
     runs-on: ${{ matrix.runs_on }}
     timeout-minutes: 90
@@ -173,7 +210,7 @@ jobs:
   derive:
     name: derive (${{ matrix.label }})
     needs: [plan, capture]
-    if: ${{ !cancelled() && needs.plan.outputs.has_derive == 'true' }}
+    if: ${{ !cancelled() && inputs.from_run == '' && needs.plan.outputs.has_derive == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -248,10 +285,20 @@ jobs:
           persist-credentials: false
 
       - name: Download screenshots
+        if: ${{ inputs.from_run == '' }}
         uses: actions/download-artifact@v7
         with:
           name: screenshots-${{ matrix.display_type }}
           path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
+
+      - name: Download screenshots from run ${{ inputs.from_run }}
+        if: ${{ inputs.from_run != '' }}
+        uses: actions/download-artifact@v7
+        with:
+          name: screenshots-${{ matrix.display_type }}
+          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
+          run-id: ${{ inputs.from_run }}
+          github-token: ${{ github.token }}
 
       # 撮影が途中で失敗した表示サイズは、画像が欠けていたり、アルファ付きや寸法違いだったりする。
       # App Store Connect の既存のセットを消してから入れ直すので、そのまま反映すると正しいセットを壊してしまう
