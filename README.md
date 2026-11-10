@@ -250,6 +250,7 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 
 - iOS 27 / iPadOS 27 以降の App Store では、スクリーンショットとは別に、プロダクトページのヘッダー（21:9、3840x1646）と検索結果（3:2、3840x2560）に画像を載せられます
 - 元は [AppStore/creative/src/creative.html](AppStore/creative/src/creative.html)。色と文言（`TODO:`）をアプリに合わせて書き換え、6.9 inch のスクリーンショットを撮ってから `Tools/render_creative_assets.sh build/screenshots/APP_IPHONE_67` で書き出し（Google Chrome を使います）、画像もコミットします
+- 端末の枠（`.phone`）は 6.9 inch の iPhone の実物（画面のまわりは片側 2.1mm・画面の角は 62pt）に合わせ、端末の幅から `phone()` で px に直して描きます。枠の寸法に CSS の `%` は使いません。`padding` の `%` は端末ではなく画面全体（3840px）の幅に対する割合になって枠が太くなり、`border-radius` の `%` は角が楕円になって画面の角と同心にならないためです（以前はこれで、枠が実物の 3 倍ほどの太さになっていました）
 - ヘッダーは初めて来た人にアプリのいちばんの価値を 1 つだけ、検索結果は何をするアプリかを実際の画面と一緒に伝えます。端末によって左右が切れるので、大事なものは中央に寄せます。他社のロゴ・価格・URL・受賞歴は入れません
 - `Creative assets/App Store` を `ref-data` → `dry-run` → `upload` の順に流して反映します。置き場所のグループと画像の仕様は、App Asset Library の参照データから引きます
 - 反映したら、App Store Connect のプレビューで iPhone / iPad の見え方を確かめてから審査に出します
