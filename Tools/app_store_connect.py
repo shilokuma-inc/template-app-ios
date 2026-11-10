@@ -399,7 +399,13 @@ class AppStoreConnect:
         while pending and time.time() < deadline:
             still_pending = []
             for screenshot_id in pending:
-                attributes = self.get(f"/v1/appScreenshots/{screenshot_id}")["data"]["attributes"]
+                try:
+                    attributes = self.get(f"/v1/appScreenshots/{screenshot_id}")["data"]["attributes"]
+                except (TimeoutError, urllib.error.URLError) as error:
+                    # 状態の問い合わせが一時的に時間切れになっても、アップロードは済んでいる。期限まで問い合わせ直す
+                    print(f"  取り込みの状態を読めませんでした（{error}）。問い合わせ直します")
+                    still_pending.append(screenshot_id)
+                    continue
                 state = attributes.get("assetDeliveryState") or {}
                 if state.get("errors"):
                     raise SystemExit(
