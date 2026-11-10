@@ -55,6 +55,9 @@ EDITABLE_APP_INFO_STATES = {
 # 環境変数で延ばせるようにする
 DELIVERY_TIMEOUT = int(os.environ.get("SCREENSHOT_DELIVERY_TIMEOUT") or 300)
 
+#: 取り込み・処理の待ちで、状態を問い合わせ直すまでの間隔（秒）
+POLL_INTERVAL = 30
+
 #: 1 リクエストあたりの待ち時間の上限（秒）。指定しないと応答が無いときに無期限に待つ
 REQUEST_TIMEOUT = 60
 
@@ -453,7 +456,8 @@ class AppStoreConnect:
                     states[screenshot_id] = state.get("state") or "?"
             pending = still_pending
             if pending:
-                time.sleep(10)
+                # 1 枚ずつ問い合わせるので、間隔を詰めると問い合わせの数が多くなりすぎる（36 枚なら 1 周で 36 回）
+                time.sleep(POLL_INTERVAL)
         if pending:
             listed = "\n".join(f"  {label}（{states.get(i, '?')}）" for i, label in pending.items())
             raise SystemExit(

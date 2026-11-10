@@ -44,7 +44,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app_store_config import ROOT, bundle_id, languages, parse_list
-from app_store_connect import REQUEST_TIMEOUT, ApiError, AppStoreConnect, is_transient
+from app_store_connect import POLL_INTERVAL, REQUEST_TIMEOUT, ApiError, AppStoreConnect, is_transient
 
 CONFIG_PATH = ROOT / "AppStore" / "creative_assets.json"
 ASSETS_DIR = ROOT / "AppStore" / "creative"
@@ -240,7 +240,7 @@ class AssetLibrary:
                     done[image_id] = {"id": image_id, **attributes}
                     del pending[image_id]
             if pending:
-                time.sleep(10)
+                time.sleep(POLL_INTERVAL)
         for image_id in pending:
             problems[image_id] = f"処理が {PROCESSING_TIMEOUT} 秒で終わりませんでした（{states.get(image_id, '?')}）"
         return done, problems
