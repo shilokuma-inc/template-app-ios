@@ -105,17 +105,25 @@ class AppStoreConnect:
 
     def _request(self, method: str, url: str, payload: dict | None = None) -> dict:
         body = json.dumps(payload).encode() if payload is not None else None
-        request = urllib.request.Request(url, data=body, method=method)
-        request.add_header("Authorization", f"Bearer {self.token}")
-        if body is not None:
-            request.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-                raw = response.read()
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode(errors="replace")
-            raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}", error.code) from None
-        return json.loads(raw) if raw else {}
+        for attempt in range(2):
+            request = urllib.request.Request(url, data=body, method=method)
+            request.add_header("Authorization", f"Bearer {self.token}")
+            if body is not None:
+                request.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                    raw = response.read()
+                return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode(errors="replace")
+                # 期限内のトークンでも、まれに 401 NOT_AUTHORIZED が返る（2026-11-10 に作ってから 4 分のトークンで出た）。
+                # 401 のリクエストは処理されていないので、トークンを作り直して 1 回だけ送り直す
+                if error.code == 401 and attempt == 0:
+                    print(f"  {method} {url} が 401 だったので、トークンを作り直して送り直します")
+                    self._token_expires_at = 0.0
+                    continue
+                raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}", error.code) from None
+        raise AssertionError("unreachable")
 
     def get(self, path: str, params: dict | None = None) -> dict:
         url = f"{API}{path}"
