@@ -46,7 +46,8 @@ CONFIG_PATH = ROOT / "AppStore" / "creative_assets.json"
 ASSETS_DIR = ROOT / "AppStore" / "creative"
 
 #: Asset Library の処理（PREPARE_FOR_SUBMISSION になる）を待つ上限（秒）
-PROCESSING_TIMEOUT = 600
+# Apple 側の処理が 10 分を超えることがある（2026-11-10 に idfa-vault-ios の 3840x2560 の検索結果の画像で止まった）ので、環境変数で延ばせるようにする
+PROCESSING_TIMEOUT = int(os.environ.get("CREATIVE_PROCESSING_TIMEOUT") or 600)
 
 #: App Store のバージョンに載せるときの機能名（参照データの features）
 FEATURE = "APP_STORE_VERSIONS"
@@ -190,7 +191,15 @@ class AssetLibrary:
 
         deadline = time.time() + PROCESSING_TIMEOUT
         while True:
-            attributes = self.client.get(f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
+            try:
+                attributes = self.client.get(f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
+            except (TimeoutError, urllib.error.URLError) as error:
+                # 状態の問い合わせが一時的に時間切れになっても、アップロードは済んでいる。期限まで問い合わせ直す
+                if time.time() > deadline:
+                    raise SystemExit(f"{path.name} の処理の状態を読めませんでした（{error}）") from None
+                print(f"  {path.name} の処理の状態を読めませんでした（{error}）。問い合わせ直します")
+                time.sleep(5)
+                continue
             state = attributes.get("state")
             if state == "FAILED":
                 raise SystemExit(f"{path.name} の処理に失敗しました: {attributes.get('stateDetails')}")

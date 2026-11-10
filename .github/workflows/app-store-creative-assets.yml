@@ -38,7 +38,8 @@ jobs:
     # App Store Connect にアプリが無いリポジトリ（テンプレート自身など）は ENABLE_DELIVERY=false でスキップする
     if: vars.ENABLE_DELIVERY != 'false'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 言語ごとに 2 枚（ヘッダーと検索結果）の処理を 1 枚ずつ待つので、処理が遅い日でも収まるよう長めにする
+    timeout-minutes: 180
 
     steps:
       - name: Checkout
@@ -63,6 +64,8 @@ jobs:
           MODE: ${{ inputs.mode }}
           LANGUAGES: ${{ inputs.languages }}
           APP_VERSION: ${{ inputs.app_version }}
+          # Apple 側の処理を 1 枚につき 30 分まで待つ
+          CREATIVE_PROCESSING_TIMEOUT: 1800
         run: |
           set -euo pipefail
           # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる
