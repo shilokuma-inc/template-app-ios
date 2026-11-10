@@ -359,6 +359,15 @@ def main() -> int:
                 },
             )
 
+    # バージョンに言語を足すと、App Store Connect が App 情報の同じ言語も作る（名前はプライマリ言語のものが入る）。
+    # 足す前に読んだ一覧のまま作ろうとすると「もうある」（409 DUPLICATE）で止まるので、読み直して書き換えに回す
+    if not args.dry_run and any(localization is None for _, _, localization in info_plan):
+        refreshed = client.app_info_localization_entries(app_info["id"])
+        info_plan = [
+            (target, attributes, localization or refreshed.get(target.store_locale))
+            for target, attributes, localization in info_plan
+        ]
+
     for target, attributes, localization in info_plan:
         label = f"{target.language} → {target.store_locale}（App 情報）"
         if localization is None:

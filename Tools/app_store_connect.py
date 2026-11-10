@@ -259,8 +259,8 @@ class AppStoreConnect:
     def create_app_info_localization(self, app_info_id: str, locale: str, attributes: dict) -> str:
         """App 情報に言語を追加する。名前（name）が無いと作れない。
 
-        バージョンの言語（appStoreVersionLocalizations）とは別物で、片方を作ってももう片方はできない。
-        アプリを作ったときの言語（プライマリ言語）にしか無いので、2 つ目の言語はここで作る。
+        バージョンの言語（appStoreVersionLocalizations）とは別物。バージョンに言語を足すと App Store Connect が
+        App 情報の同じ言語も作るので（2026-11、idfa-vault-ios で確認）、呼ぶ前に一覧を読み直す（upload_metadata.py）。
         """
         if self.dry_run:
             return "dry-run"
