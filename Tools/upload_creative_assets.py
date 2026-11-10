@@ -44,7 +44,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app_store_config import ROOT, bundle_id, languages, parse_list
-from app_store_connect import REQUEST_TIMEOUT, ApiError, AppStoreConnect
+from app_store_connect import REQUEST_TIMEOUT, ApiError, AppStoreConnect, is_transient
 
 CONFIG_PATH = ROOT / "AppStore" / "creative_assets.json"
 ASSETS_DIR = ROOT / "AppStore" / "creative"
@@ -224,8 +224,10 @@ class AssetLibrary:
             for image_id, label in list(pending.items()):
                 try:
                     attributes = self.client.get(f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
-                except (TimeoutError, urllib.error.URLError) as error:
-                    # 状態の問い合わせが一時的に時間切れになっても、アップロードは済んでいる。期限まで問い合わせ直す
+                except (TimeoutError, urllib.error.URLError, ApiError) as error:
+                    # 状態の問い合わせが一時的に失敗しても、アップロードは済んでいる。期限まで問い合わせ直す
+                    if not is_transient(error):
+                        raise
                     print(f"  {label} の処理の状態を読めませんでした（{error}）。問い合わせ直します")
                     continue
                 state = attributes.get("state")

@@ -73,6 +73,17 @@ class ApiError(RuntimeError):
         self.status = status
 
 
+#: 待っているあいだの状態の問い合わせで、問い合わせ直してよい HTTP のステータス（混雑・一時的なサーバーの不調）
+TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
+
+
+def is_transient(error: Exception) -> bool:
+    """状態の問い合わせの失敗が一時的なもの（時間切れ・接続の失敗・429 / 5xx）か。"""
+    if isinstance(error, ApiError):
+        return error.status in TRANSIENT_STATUSES
+    return isinstance(error, (TimeoutError, urllib.error.URLError))
+
+
 class AppStoreConnect:
     def __init__(self, key_id: str, issuer_id: str, private_key: str, dry_run: bool = False):
         self.key_id = key_id
@@ -419,8 +430,10 @@ class AppStoreConnect:
             for screenshot_id, label in pending.items():
                 try:
                     attributes = self.get(f"/v1/appScreenshots/{screenshot_id}")["data"]["attributes"]
-                except (TimeoutError, urllib.error.URLError) as error:
-                    # 状態の問い合わせが一時的に時間切れになっても、アップロードは済んでいる。期限まで問い合わせ直す
+                except (TimeoutError, urllib.error.URLError, ApiError) as error:
+                    # 状態の問い合わせが一時的に失敗しても、アップロードは済んでいる。期限まで問い合わせ直す
+                    if not is_transient(error):
+                        raise
                     print(f"  {label} の取り込みの状態を読めませんでした（{error}）。問い合わせ直します")
                     still_pending[screenshot_id] = label
                     continue
