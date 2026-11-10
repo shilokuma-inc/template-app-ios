@@ -566,7 +566,9 @@ def plan_pricing(client, app: dict, pricing: dict) -> Step:
     label = "価格"
     schedule = client.get_or_none(f"/v1/apps/{app['id']}/appPriceSchedule")
     if schedule is not None:
-        manual_prices = client.get(f"/v1/appPriceSchedules/{schedule['id']}/manualPrices", {"limit": 1}).get("data")
+        # 価格を一度も設定していないアプリでも、価格スケジュールは ID（アプリと同じ）を返し、その manualPrices が 404 になる。
+        # 404 は未設定として扱う
+        manual_prices = client.get_or_none(f"/v1/appPriceSchedules/{schedule['id']}/manualPrices", {"limit": 1})
         if manual_prices:
             return label, ["    設定済みなので触りません（変えるときは App Store Connect の「価格および配信状況」で）"], None
 
@@ -608,8 +610,11 @@ def _is_zero(price) -> bool:
 def plan_availability(client, app: dict, availability: dict, reminders: list[str]) -> Step:
     label = "配信状況"
     current = client.get_or_none(f"/v1/apps/{app['id']}/appAvailabilityV2")
+    # 価格と同じく、未設定でも ID を返して、その中身が 404 になることがある。404 は未設定として扱う
+    entries = None
     if current is not None:
-        entries = client.get_all(f"/v2/appAvailabilities/{current['id']}/territoryAvailabilities")
+        entries = client.get_all_or_none(f"/v2/appAvailabilities/{current['id']}/territoryAvailabilities")
+    if entries is not None:
         count = sum(1 for entry in entries if (entry.get("attributes") or {}).get("available"))
         if count == 0:
             reminders.append("価格および配信状況の、配信する国と地域（1 つも選ばれていません）")
