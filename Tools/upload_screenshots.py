@@ -24,6 +24,8 @@ App Store Connect API で言語ごとにアップロードする。
 言語ごとに、その表示サイズの既存のスクリーンショットセットを削除してから入れ直す。
 （App Store Connect は 1 つの言語・表示サイズにつきセットを 1 つしか持てないため、
  差し替えは「消してから入れる」しかない。編集中のバージョンなので公開中の画面には影響しない。）
+ただし、同じ画像（順番とチェックサムが一致）が載っているセットは消さずに、取り込みの完了を待つだけにする。
+取り込み待ちの上限で止まったときは、同じ画像で流し直せば続きから待てる。
 
 PyJWT が要る: `python3 -m pip install pyjwt cryptography`
 """
@@ -43,6 +45,19 @@ from app_store_connect import AppStoreConnect
 def screenshots_for(directory: Path) -> list[Path]:
     """ファイル名の順に並べる。この順がそのまま App Store の並び順になる。"""
     return sorted(p for p in directory.glob("*.png"))
+
+
+def same_screenshots(current: list[dict], images: list[Path]) -> bool:
+    """セットに載っているものが、これから上げる画像と同じ順・同じ中身（チェックサム）で、取り込みに失敗していないか。"""
+    if len(current) != len(images):
+        return False
+    for shot, image in zip(current, images):
+        attributes = shot.get("attributes") or {}
+        if attributes.get("sourceFileChecksum") != AppStoreConnect.checksum(image):
+            return False
+        if (attributes.get("assetDeliveryState") or {}).get("errors"):
+            return False
+    return True
 
 
 def main() -> int:
@@ -145,6 +160,9 @@ def main() -> int:
             plan[index] = (target, images, localization_id)
 
     uploaded_total = 0
+    kept_total = 0
+    # 全言語ぶんを上げてから、取り込みをまとめて待つ（wait_for_delivery）
+    delivering: dict[str, str] = {}
     for target, images, localization_id in plan:
         if localization_id == "dry-run":
             # --dry-run では言語を作っていないので、App Store Connect に問い合わせる先が無い
@@ -152,16 +170,26 @@ def main() -> int:
             continue
         existing = client.existing_set(localization_id, args.display_type)
         if existing and not args.dry_run:
+            current = client.set_screenshots(existing)
+            if same_screenshots(current, images):
+                # 前回の実行で上げたまま取り込み待ちで止まったものも、上げ直さずに完了を待つ
+                delivering.update(
+                    {shot["id"]: f"{target.language}/{image.name}" for shot, image in zip(current, images)}
+                )
+                kept_total += len(images)
+                print(f"  {target.language} → {target.store_locale}: 同じ {len(images)} 枚が載っているので上げ直さない")
+                continue
             client.delete(f"/v1/appScreenshotSets/{existing}")
         set_id = client.create_set(localization_id, args.display_type)
 
         screenshot_ids = [client.upload(set_id, image) for image in images]
         client.reorder(set_id, screenshot_ids)
-        client.wait_for_delivery(screenshot_ids)
+        delivering.update({i: f"{target.language}/{image.name}" for i, image in zip(screenshot_ids, images)})
         uploaded_total += len(images)
-        print(f"  {target.language} → {target.store_locale}: {len(images)} 枚")
+        print(f"  {target.language} → {target.store_locale}: {len(images)} 枚を上げた")
 
-    print(f"完了: {len(plan)} 言語 / {uploaded_total} 枚")
+    client.wait_for_delivery(delivering)
+    print(f"完了: {len(plan)} 言語 / 上げた {uploaded_total} 枚・そのまま {kept_total} 枚")
     if skipped:
         print(f"飛ばした言語: {', '.join(skipped)}")
     return 0
