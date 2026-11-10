@@ -47,15 +47,21 @@ def screenshots_for(directory: Path) -> list[Path]:
     return sorted(p for p in directory.glob("*.png"))
 
 
-def same_screenshots(current: list[dict], images: list[Path]) -> bool:
-    """セットに載っているものが、これから上げる画像と同じ順・同じ中身（チェックサム）で、取り込みに失敗していないか。"""
+def same_screenshots(current: list[dict], images: list[Path], require_complete: bool = False) -> bool:
+    """セットに載っているものが、これから上げる画像と同じ順・同じ中身（チェックサム）で、取り込みに失敗していないか。
+
+    require_complete なら、取り込みが終わっていない画像を含むセットも同じとみなさない（--reupload-pending）。
+    """
     if len(current) != len(images):
         return False
     for shot, image in zip(current, images):
         attributes = shot.get("attributes") or {}
         if attributes.get("sourceFileChecksum") != AppStoreConnect.checksum(image):
             return False
-        if (attributes.get("assetDeliveryState") or {}).get("errors"):
+        delivery = attributes.get("assetDeliveryState") or {}
+        if delivery.get("errors"):
+            return False
+        if require_complete and delivery.get("state") != "COMPLETE":
             return False
     return True
 
@@ -81,6 +87,11 @@ def main() -> int:
         default="fail",
         help="App Store Connect にその言語が無いときの扱い。"
              "fail: 止める（既定） / skip: 飛ばす / create: その言語を追加してから反映する",
+    )
+    parser.add_argument(
+        "--reupload-pending",
+        action="store_true",
+        help="同じ画像でも、取り込みが終わっていない画像を含むセットは消して上げ直す（Apple 側で取り込みが止まったとき）",
     )
     parser.add_argument("--dry-run", action="store_true", help="何も書き換えず、やることだけ出す")
     args = parser.parse_args()
@@ -171,7 +182,7 @@ def main() -> int:
         existing = client.existing_set(localization_id, args.display_type)
         if existing and not args.dry_run:
             current = client.set_screenshots(existing)
-            if same_screenshots(current, images):
+            if same_screenshots(current, images, require_complete=args.reupload_pending):
                 # 前回の実行で上げたまま取り込み待ちで止まったものも、上げ直さずに完了を待つ
                 delivering.update(
                     {shot["id"]: f"{target.language}/{image.name}" for shot, image in zip(current, images)}
