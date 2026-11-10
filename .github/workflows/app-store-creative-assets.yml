@@ -38,8 +38,9 @@ jobs:
     # App Store Connect にアプリが無いリポジトリ（テンプレート自身など）は ENABLE_DELIVERY=false でスキップする
     if: vars.ENABLE_DELIVERY != 'false'
     runs-on: ubuntu-latest
-    # 言語ごとに 2 枚（ヘッダーと検索結果）の処理を 1 枚ずつ待つので、処理が遅い日でも収まるよう長めにする
-    timeout-minutes: 180
+    # 全言語の画像（言語ごとに 2 枚）を上げてから、処理をまとめて待つ（CREATIVE_PROCESSING_TIMEOUT の 30 分）。
+    # 待ちが切れても、処理が終わった画像は配置してから失敗にする。流し直せば上げ直さずに続きから待てる
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -64,7 +65,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           LANGUAGES: ${{ inputs.languages }}
           APP_VERSION: ${{ inputs.app_version }}
-          # Apple 側の処理を 1 枚につき 30 分まで待つ
+          # Apple 側の処理を、全部の画像でまとめて 30 分まで待つ
           CREATIVE_PROCESSING_TIMEOUT: 1800
         run: |
           set -euo pipefail
