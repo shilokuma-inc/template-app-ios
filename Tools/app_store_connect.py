@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -50,7 +51,12 @@ EDITABLE_APP_INFO_STATES = {
 }
 
 #: アップロード後、Apple 側の取り込みが終わるのを待つ上限（秒）
-DELIVERY_TIMEOUT = 300
+# Apple 側の取り込みは 5 分を超えることがある（2026-11-10 に idfa-vault-ios の iPhone 6.9 inch・iPad 13 inch で止まった）ので、
+# 環境変数で延ばせるようにする
+DELIVERY_TIMEOUT = int(os.environ.get("SCREENSHOT_DELIVERY_TIMEOUT") or 300)
+
+#: 取り込み・処理の待ちで、状態を問い合わせ直すまでの間隔（秒）
+POLL_INTERVAL = 30
 
 #: 1 リクエストあたりの待ち時間の上限（秒）。指定しないと応答が無いときに無期限に待つ
 REQUEST_TIMEOUT = 60
@@ -68,6 +74,17 @@ class ApiError(RuntimeError):
         super().__init__(message)
         #: HTTP のステータスコード（転送の失敗など、API の応答でないときは None）
         self.status = status
+
+
+#: 待っているあいだの状態の問い合わせで、問い合わせ直してよい HTTP のステータス（混雑・一時的なサーバーの不調）
+TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
+
+
+def is_transient(error: Exception) -> bool:
+    """状態の問い合わせの失敗が一時的なもの（時間切れ・接続の失敗・429 / 5xx）か。"""
+    if isinstance(error, ApiError):
+        return error.status in TRANSIENT_STATUSES
+    return isinstance(error, (TimeoutError, urllib.error.URLError))
 
 
 class AppStoreConnect:
@@ -91,17 +108,25 @@ class AppStoreConnect:
 
     def _request(self, method: str, url: str, payload: dict | None = None) -> dict:
         body = json.dumps(payload).encode() if payload is not None else None
-        request = urllib.request.Request(url, data=body, method=method)
-        request.add_header("Authorization", f"Bearer {self.token}")
-        if body is not None:
-            request.add_header("Content-Type", "application/json")
-        try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-                raw = response.read()
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode(errors="replace")
-            raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}", error.code) from None
-        return json.loads(raw) if raw else {}
+        for attempt in range(2):
+            request = urllib.request.Request(url, data=body, method=method)
+            request.add_header("Authorization", f"Bearer {self.token}")
+            if body is not None:
+                request.add_header("Content-Type", "application/json")
+            try:
+                with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                    raw = response.read()
+                return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode(errors="replace")
+                # 期限内のトークンでも、まれに 401 NOT_AUTHORIZED が返る（2026-11-10 に作ってから 4 分のトークンで出た）。
+                # 401 のリクエストは処理されていないので、トークンを作り直して 1 回だけ送り直す
+                if error.code == 401 and attempt == 0:
+                    print(f"  {method} {url} が 401 だったので、トークンを作り直して送り直します")
+                    self._token_expires_at = 0.0
+                    continue
+                raise ApiError(f"{method} {url} が {error.code} で失敗しました\n{detail}", error.code) from None
+        raise AssertionError("unreachable")
 
     def get(self, path: str, params: dict | None = None) -> dict:
         url = f"{API}{path}"
@@ -313,6 +338,15 @@ class AppStoreConnect:
         )
         return sets[0]["id"] if sets else None
 
+    def set_screenshots(self, set_id: str) -> list[dict]:
+        """セットに載っているスクリーンショット（App Store に並ぶ順）。"""
+        return self.get_all(f"/v1/appScreenshotSets/{set_id}/appScreenshots")
+
+    @staticmethod
+    def checksum(path: Path) -> str:
+        """App Store Connect の sourceFileChecksum と同じ MD5。"""
+        return hashlib.md5(path.read_bytes()).hexdigest()
+
     def create_set(self, localization_id: str, display_type: str) -> str:
         if self.dry_run:
             return "dry-run"
@@ -374,7 +408,7 @@ class AppStoreConnect:
                     "id": screenshot_id,
                     "attributes": {
                         "uploaded": True,
-                        "sourceFileChecksum": hashlib.md5(data).hexdigest(),
+                        "sourceFileChecksum": self.checksum(path),
                     },
                 }
             },
@@ -390,30 +424,45 @@ class AppStoreConnect:
             {"data": [{"type": "appScreenshots", "id": i} for i in screenshot_ids]},
         )
 
-    def wait_for_delivery(self, screenshot_ids: list[str]) -> None:
-        """Apple 側の取り込みが終わるまで待つ。失敗していればここで気づける。"""
-        if self.dry_run:
+    def wait_for_delivery(self, screenshots: dict[str, str]) -> None:
+        """Apple 側の取り込みが終わるまで待つ。失敗していればここで気づける。
+
+        screenshots は ID → 表示名（言語/ファイル名）。全言語ぶんを上げてから 1 回で待つ。
+        1 言語ずつ待つと、Apple 側の処理が遅い日は 1 言語目で上限に達し、残りの言語が上がらない（2026-11-10）。
+        """
+        if self.dry_run or not screenshots:
             return
+        print(f"  取り込みを待ちます: {len(screenshots)} 枚（上限 {DELIVERY_TIMEOUT} 秒）")
         deadline = time.time() + DELIVERY_TIMEOUT
-        pending = list(screenshot_ids)
+        pending = dict(screenshots)
+        states: dict[str, str] = {}
         while pending and time.time() < deadline:
-            still_pending = []
-            for screenshot_id in pending:
-                attributes = self.get(f"/v1/appScreenshots/{screenshot_id}")["data"]["attributes"]
+            still_pending = {}
+            for screenshot_id, label in pending.items():
+                try:
+                    attributes = self.get(f"/v1/appScreenshots/{screenshot_id}")["data"]["attributes"]
+                except (TimeoutError, urllib.error.URLError, ApiError) as error:
+                    # 状態の問い合わせが一時的に失敗しても、アップロードは済んでいる。期限まで問い合わせ直す
+                    if not is_transient(error):
+                        raise
+                    print(f"  {label} の取り込みの状態を読めませんでした（{error}）。問い合わせ直します")
+                    still_pending[screenshot_id] = label
+                    continue
                 state = attributes.get("assetDeliveryState") or {}
                 if state.get("errors"):
-                    raise SystemExit(
-                        f"{attributes.get('fileName')} の取り込みに失敗しました: {state['errors']}"
-                    )
+                    raise SystemExit(f"{label} の取り込みに失敗しました: {state['errors']}")
                 if state.get("state") != "COMPLETE":
-                    still_pending.append(screenshot_id)
+                    still_pending[screenshot_id] = label
+                    states[screenshot_id] = state.get("state") or "?"
             pending = still_pending
             if pending:
-                time.sleep(5)
+                # 1 枚ずつ問い合わせるので、間隔を詰めると問い合わせの数が多くなりすぎる（36 枚なら 1 周で 36 回）
+                time.sleep(POLL_INTERVAL)
         if pending:
+            listed = "\n".join(f"  {label}（{states.get(i, '?')}）" for i, label in pending.items())
             raise SystemExit(
-                f"{len(pending)} 枚の取り込みが {DELIVERY_TIMEOUT} 秒で終わりませんでした。"
-                "App Store Connect の画面で状態を確認してください。"
+                f"{len(pending)} 枚の取り込みが {DELIVERY_TIMEOUT} 秒で終わりませんでした。\n{listed}\n"
+                "上げた画像はそのまま残しています。同じ画像で流し直すと、上げ直さずに取り込みの完了を待ちます。"
             )
 
 

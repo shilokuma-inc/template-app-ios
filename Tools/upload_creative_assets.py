@@ -9,11 +9,15 @@ iOS 27 から、スクリーンショットとは別に「クリエイティブ�
     python3 Tools/upload_creative_assets.py --dry-run     # 何も書き換えず、やることだけ出す
     python3 Tools/upload_creative_assets.py --ref-data    # 置き場所と画像の仕様を App Store Connect から読んで出す
 
-App Asset Library の API で、言語ごとに次の順で反映する。
+App Asset Library の API で、次の順で反映する。
 
-1. 画像を Asset Library に上げ（予約 → 転送 → 確定）、Apple 側の処理が終わるのを待つ
-2. 処理で決まった画像の仕様（specId）を受け付ける置き場所のグループを、参照データから探す
-3. その言語の同じ置き場所にある既存の配置を外し、新しい画像を配置する
+1. 全言語の画像を Asset Library に上げる（予約 → 転送 → 確定）。参照名には画像のハッシュを入れ、
+   同じ参照名の画像が前回の実行で上がっていれば、上げ直さずにそれを使う
+2. Apple 側の処理が終わるのを、全部の画像でまとめて待つ
+3. 処理で決まった画像の仕様（specId）を受け付ける置き場所のグループを、参照データから探す
+4. その言語の同じ置き場所にある既存の配置を外し、新しい画像を配置する（同じ画像が配置済みなら何もしない）
+
+処理の待ちが上限で切れても、終わった画像は配置してから失敗にする。流し直せば、残りを上げ直さずに続きから待てる。
 
 置き場所のグループ（iPhone / iPad など）や仕様の ID は、Apple が機種を足すたびに増えるので
 決め打ちせず、毎回参照データ（appAssetLibraryRefData）から引く。
@@ -40,18 +44,24 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app_store_config import ROOT, bundle_id, languages, parse_list
-from app_store_connect import REQUEST_TIMEOUT, ApiError, AppStoreConnect
+from app_store_connect import POLL_INTERVAL, REQUEST_TIMEOUT, ApiError, AppStoreConnect, is_transient
 
 CONFIG_PATH = ROOT / "AppStore" / "creative_assets.json"
 ASSETS_DIR = ROOT / "AppStore" / "creative"
 
 #: Asset Library の処理（PREPARE_FOR_SUBMISSION になる）を待つ上限（秒）
-PROCESSING_TIMEOUT = 600
+# Apple 側の処理が 10 分を超えることがある（2026-11-10 に idfa-vault-ios の 3840x2560 の検索結果の画像で止まった）ので、環境変数で延ばせるようにする
+PROCESSING_TIMEOUT = int(os.environ.get("CREATIVE_PROCESSING_TIMEOUT") or 600)
 
 #: App Store のバージョンに載せるときの機能名（参照データの features）
 FEATURE = "APP_STORE_VERSIONS"
 
 CATEGORY = "CREATIVE_ASSETS"
+
+#: 前回の実行で上げた同じ画像（参照名が同じ）を、上げ直さずに使う状態。UPLOAD_COMPLETE は Apple 側で処理中
+REUSABLE_STATES = {"UPLOAD_COMPLETE", "PREPARE_FOR_SUBMISSION"}
+#: 消して上げ直す状態。AWAITING_UPLOAD は転送か確定の途中で止まったもの
+RETRYABLE_STATES = {"AWAITING_UPLOAD", "FAILED"}
 
 
 def load_config() -> list[dict]:
@@ -148,8 +158,13 @@ class AssetLibrary:
             data = data[0]
         return RefData(data["attributes"])
 
-    def upload_image(self, path: Path, reference_name: str) -> dict:
-        """予約 → 転送 → 確定し、処理が終わった画像の attributes を返す。"""
+    def images_by_reference_name(self) -> dict[str, dict]:
+        """Asset Library にある画像を参照名で引けるようにする。"""
+        images = self.client.get_all(f"/v1/appAssetLibraries/{self.library_id}/images")
+        return {(image.get("attributes") or {}).get("referenceName"): image for image in images}
+
+    def upload_image(self, path: Path, reference_name: str) -> str:
+        """予約 → 転送 → 確定し、画像の ID を返す。Apple 側の処理は wait_for_processing でまとめて待つ。"""
         data = path.read_bytes()
         reserved = self.client.post(
             "/v1/appAssetLibraryImages",
@@ -187,19 +202,48 @@ class AssetLibrary:
             f"/v1/appAssetLibraryImages/{image_id}",
             {"data": {"type": "appAssetLibraryImages", "id": image_id, "attributes": {"uploaded": True}}},
         )
+        return image_id
 
+    def delete_image(self, image_id: str) -> None:
+        self.client.delete(f"/v1/appAssetLibraryImages/{image_id}")
+
+    def wait_for_processing(self, images: dict[str, str]) -> tuple[dict[str, dict], dict[str, str]]:
+        """Apple 側の処理が終わるまで、全部の画像をまとめて待つ。
+
+        images は ID → 表示名（言語/ファイル名）。処理が終わった画像の attributes と、
+        終わらなかった・失敗した画像の理由を返す。1 枚ずつ待つと、処理が遅い日は 1 枚で上限に達し、
+        残りの言語が上がらない（2026-11-10）ので、全部を上げてから待つ。
+        """
+        print(f"処理を待ちます: {len(images)} 枚（上限 {PROCESSING_TIMEOUT} 秒）")
         deadline = time.time() + PROCESSING_TIMEOUT
-        while True:
-            attributes = self.client.get(f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
-            state = attributes.get("state")
-            if state == "FAILED":
-                raise SystemExit(f"{path.name} の処理に失敗しました: {attributes.get('stateDetails')}")
-            # 処理が終わると PREPARE_FOR_SUBMISSION になり、照合した仕様（specId）が入る
-            if state == "PREPARE_FOR_SUBMISSION" and attributes.get("specId"):
-                return {"id": image_id, **attributes}
-            if time.time() > deadline:
-                raise SystemExit(f"{path.name} の処理が {PROCESSING_TIMEOUT} 秒で終わりませんでした（{state}）")
-            time.sleep(5)
+        done: dict[str, dict] = {}
+        problems: dict[str, str] = {}
+        pending = dict(images)
+        states: dict[str, str] = {}
+        while pending and time.time() < deadline:
+            for image_id, label in list(pending.items()):
+                try:
+                    attributes = self.client.get(f"/v1/appAssetLibraryImages/{image_id}")["data"]["attributes"]
+                except (TimeoutError, urllib.error.URLError, ApiError) as error:
+                    # 状態の問い合わせが一時的に失敗しても、アップロードは済んでいる。期限まで問い合わせ直す
+                    if not is_transient(error):
+                        raise
+                    print(f"  {label} の処理の状態を読めませんでした（{error}）。問い合わせ直します")
+                    continue
+                state = attributes.get("state")
+                states[image_id] = state or "?"
+                if state == "FAILED":
+                    problems[image_id] = f"処理に失敗しました: {attributes.get('stateDetails')}"
+                    del pending[image_id]
+                # 処理が終わると PREPARE_FOR_SUBMISSION になり、照合した仕様（specId）が入る
+                elif state == "PREPARE_FOR_SUBMISSION" and attributes.get("specId"):
+                    done[image_id] = {"id": image_id, **attributes}
+                    del pending[image_id]
+            if pending:
+                time.sleep(POLL_INTERVAL)
+        for image_id in pending:
+            problems[image_id] = f"処理が {PROCESSING_TIMEOUT} 秒で終わりませんでした（{states.get(image_id, '?')}）"
+        return done, problems
 
     def placements(self, localization_id: str, placement_type: str) -> list[dict]:
         return self.client.get_all(
@@ -229,6 +273,15 @@ class AssetLibrary:
         self.client.delete(f"/v1/appAssetLibraryPlacements/{placement_id}")
 
 
+def placement_group(placement: dict) -> str | None:
+    return (placement.get("attributes") or {}).get("placementGroup")
+
+
+def placement_image_id(placement: dict) -> str | None:
+    image = ((placement.get("relationships") or {}).get("image") or {}).get("data") or {}
+    return image.get("id")
+
+
 # MARK: - main
 
 
@@ -244,6 +297,11 @@ def main() -> int:
         type=Path,
         default=os.environ.get("APP_STORE_CONNECT_PRIVATE_KEY_PATH"),
         help="App Store Connect API Key の .p8",
+    )
+    parser.add_argument(
+        "--reupload-pending",
+        action="store_true",
+        help="前回上げた同じ画像でも、処理中（UPLOAD_COMPLETE）のものは消して上げ直す（Apple 側で処理が止まったとき）",
     )
     parser.add_argument("--dry-run", action="store_true", help="何も書き換えず、やることだけ出す")
     parser.add_argument("--ref-data", action="store_true", help="置き場所と画像の仕様を出して終わる")
@@ -296,37 +354,84 @@ def main() -> int:
     missing_locales = [language.store_locale for language in targets if language.store_locale not in localizations]
     if missing_locales:
         raise SystemExit(f"App Store Connect の {version['attributes']['versionString']} に無い言語: {', '.join(missing_locales)}")
-    for language in targets:
-        localization_id = localizations[language.store_locale]
-        print(f"  {language.language} → {language.store_locale}")
-
-        for asset in assets:
-            placement_type = asset["placementType"]
-            path = ASSETS_DIR / language.language / asset["file"]
-            existing = library.placements(localization_id, placement_type)
-            if args.dry_run:
+    if args.dry_run:
+        for language in targets:
+            localization_id = localizations[language.store_locale]
+            print(f"  {language.language} → {language.store_locale}")
+            for asset in assets:
+                placement_type = asset["placementType"]
+                path = ASSETS_DIR / language.language / asset["file"]
+                existing = library.placements(localization_id, placement_type)
                 print(f"    {placement_type}: {path.name} を配置する予定（既存の配置 {len(existing)} 件を外す）")
+        print(f"完了: {len(targets)} 言語")
+        return 0
+
+    # 1. 全言語の画像を上げる（処理は待たない）。前回の実行で上げた同じ画像があれば、それを使う
+    version_string = version["attributes"]["versionString"]
+    library_images = library.images_by_reference_name()
+    jobs = []  # (言語, 置き場所の設定, 画像のパス, 画像の ID)
+    for language in targets:
+        for asset in assets:
+            path = ASSETS_DIR / language.language / asset["file"]
+            # 参照名は Asset Library の中で一意。中身のハッシュを入れて、同じ画像なら上げ直さず、描き直したら別の画像にする
+            reference_name = (f"{asset.get('referenceName', asset['placementType'])} "
+                              f"{language.language} {version_string} {AppStoreConnect.checksum(path)[:8]}")
+            label = f"{language.language}/{path.name}"
+            found = library_images.get(reference_name)
+            state = ((found or {}).get("attributes") or {}).get("state")
+            # --reupload-pending では、処理中のまま止まった画像を使わずに上げ直す
+            retry_states = RETRYABLE_STATES | ({"UPLOAD_COMPLETE"} if args.reupload_pending else set())
+            if found and state in REUSABLE_STATES and state not in retry_states:
+                print(f"  {label}: 前回上げた同じ画像を使う（{state}）")
+                jobs.append((language, asset, path, found["id"]))
                 continue
+            if found and state in retry_states:
+                # 転送の途中で止まった・処理に失敗した画像は、消して上げ直す（参照名が空かないと作れない）
+                print(f"  {label}: 前回上げた画像が {state} なので、消して上げ直す")
+                library.delete_image(found["id"])
+            elif found:
+                raise SystemExit(f"{label}: 参照名 {reference_name!r} の画像が {state} の状態で残っています。"
+                                 "App Store Connect の画面で確かめてください。")
+            jobs.append((language, asset, path, library.upload_image(path, reference_name)))
+            print(f"  {label}: 上げた")
 
-            reference_name = (f"{asset.get('referenceName', placement_type)} "
-                              f"{language.language} {version['attributes']['versionString']}")
-            image = library.upload_image(path, reference_name)
-            spec = ref_data.image_spec(image.get("specId") or "") or {}
-            groups = ref_data.groups_for_spec(placement_type, image.get("specId") or "")
-            if not groups:
-                raise SystemExit(
-                    f"{path.name}（{spec.get('shortName') or image.get('specId')}）を受け付ける "
-                    f"{placement_type} のグループがありません。--ref-data で仕様を確かめてください。"
-                )
+    # 2. 処理をまとめて待つ
+    done, problems = library.wait_for_processing(
+        {image_id: f"{language.language}/{path.name}" for language, _, path, image_id in jobs}
+    )
 
-            for placement in existing:
-                library.remove(placement["id"])
-            for group in groups:
-                library.place(localization_id, placement_type, group, image["id"])
-            print(f"    {placement_type}: {path.name}（{spec.get('shortName')}）→ {', '.join(groups)}"
-                  f"（既存の配置 {len(existing)} 件を外した）")
+    # 3. 処理が終わった画像から配置する。終わらなかった画像は、流し直せば上げ直さずに続きから待てる
+    for language, asset, path, image_id in jobs:
+        label = f"{language.language}/{path.name}"
+        image = done.get(image_id)
+        if image is None:
+            continue
+        placement_type = asset["placementType"]
+        localization_id = localizations[language.store_locale]
+        spec = ref_data.image_spec(image.get("specId") or "") or {}
+        groups = ref_data.groups_for_spec(placement_type, image.get("specId") or "")
+        if not groups:
+            problems[image_id] = (f"{spec.get('shortName') or image.get('specId')} を受け付ける "
+                                  f"{placement_type} のグループがありません。--ref-data で仕様を確かめてください。")
+            continue
 
-    print(f"完了: {len(targets)} 言語")
+        existing = library.placements(localization_id, placement_type)
+        placed = {(placement_group(p), placement_image_id(p)) for p in existing}
+        if placed == {(group, image_id) for group in groups}:
+            print(f"  {label}: {placement_type} に配置済み（{', '.join(groups)}）")
+            continue
+        for placement in existing:
+            library.remove(placement["id"])
+        for group in groups:
+            library.place(localization_id, placement_type, group, image_id)
+        print(f"  {label}: {placement_type}（{spec.get('shortName')}）→ {', '.join(groups)}"
+              f"（既存の配置 {len(existing)} 件を外した）")
+
+    if problems:
+        labels = {image_id: f"{language.language}/{path.name}" for language, _, path, image_id in jobs}
+        listed = "\n".join(f"  {labels.get(i, i)}: {reason}" for i, reason in problems.items())
+        raise SystemExit(f"配置できなかった画像が {len(problems)} 枚あります:\n{listed}")
+    print(f"完了: {len(targets)} 言語 / {len(jobs)} 枚")
     return 0
 
 
