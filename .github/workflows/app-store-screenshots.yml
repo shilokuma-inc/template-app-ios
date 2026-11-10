@@ -229,7 +229,8 @@ jobs:
     # 撮影が途中で失敗した表示サイズも artifact は残るので、反映の前に中身を検査して落とす
     if: ${{ !cancelled() && needs.plan.outputs.should_upload == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 取り込み待ち（SCREENSHOT_DELIVERY_TIMEOUT の 20 分）と、全言語の転送のぶん
+    timeout-minutes: 40
     strategy:
       # missing_locales: create のとき、表示サイズごとのジョブが同じ言語を同時に作ろうとして失敗するので 1 本ずつ
       max-parallel: 1
@@ -307,6 +308,8 @@ jobs:
           LANGUAGES: ${{ inputs.languages }}
           APP_VERSION: ${{ inputs.app_version }}
           MISSING_LOCALES: ${{ inputs.missing_locales }}
+          # Apple 側の取り込みが 5 分を超えることがある（2026-11-10 に idfa-vault-ios の iPhone 6.9 inch・iPad 13 inch で止まった）
+          SCREENSHOT_DELIVERY_TIMEOUT: 1200
         run: |
           set -euo pipefail
           # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる

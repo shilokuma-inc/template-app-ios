@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 import urllib.error
 import urllib.parse
@@ -50,7 +51,9 @@ EDITABLE_APP_INFO_STATES = {
 }
 
 #: アップロード後、Apple 側の取り込みが終わるのを待つ上限（秒）
-DELIVERY_TIMEOUT = 300
+# Apple 側の取り込みは 5 分を超えることがある（2026-11-10 に idfa-vault-ios の iPhone 6.9 inch・iPad 13 inch で止まった）ので、
+# 環境変数で延ばせるようにする
+DELIVERY_TIMEOUT = int(os.environ.get("SCREENSHOT_DELIVERY_TIMEOUT") or 300)
 
 #: 1 リクエストあたりの待ち時間の上限（秒）。指定しないと応答が無いときに無期限に待つ
 REQUEST_TIMEOUT = 60
