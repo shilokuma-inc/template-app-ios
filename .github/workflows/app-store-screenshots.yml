@@ -52,6 +52,10 @@ on:
         description: '撮らずに、release/** で撮ったこのワークフローの実行（run ID）の artifact を反映する（どのブランチでも）'
         required: false
         default: ''
+      reupload_pending:
+        description: '同じ画像でも、取り込みが終わっていない画像を含むセットは消して上げ直す（Apple 側で取り込みが止まったとき）'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -355,6 +359,7 @@ jobs:
           LANGUAGES: ${{ inputs.languages }}
           APP_VERSION: ${{ inputs.app_version }}
           MISSING_LOCALES: ${{ inputs.missing_locales }}
+          REUPLOAD_PENDING: ${{ inputs.reupload_pending }}
           # Apple 側の取り込みが 5 分を超えることがある（2026-11-10 に idfa-vault-ios の iPhone 6.9 inch・iPad 13 inch で止まった）
           SCREENSHOT_DELIVERY_TIMEOUT: 1200
         run: |
@@ -368,6 +373,9 @@ jobs:
           fi
           if [ -n "$APP_VERSION" ]; then
             options+=(--app-version "$APP_VERSION")
+          fi
+          if [ "$REUPLOAD_PENDING" = "true" ]; then
+            options+=(--reupload-pending)
           fi
 
           # tee に繋ぐと標準出力がまとめ書きになり、失敗したときのログが前後するので -u で止める

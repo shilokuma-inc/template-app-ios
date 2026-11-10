@@ -28,6 +28,10 @@ on:
         description: '反映先のバージョン。空なら編集できるバージョンを自動で選ぶ'
         required: false
         default: ''
+      reupload_pending:
+        description: '前回上げた同じ画像でも、処理中のまま止まったものは消して上げ直す（mode: upload のとき）'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -65,6 +69,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           LANGUAGES: ${{ inputs.languages }}
           APP_VERSION: ${{ inputs.app_version }}
+          REUPLOAD_PENDING: ${{ inputs.reupload_pending }}
           # Apple 側の処理を、全部の画像でまとめて 30 分まで待つ
           CREATIVE_PROCESSING_TIMEOUT: 1800
         run: |
@@ -83,6 +88,9 @@ jobs:
           fi
           if [ -n "$APP_VERSION" ]; then
             options+=(--app-version "$APP_VERSION")
+          fi
+          if [ "$REUPLOAD_PENDING" = "true" ]; then
+            options+=(--reupload-pending)
           fi
 
           .venv/bin/python -u Tools/upload_creative_assets.py ${options[@]+"${options[@]}"} | tee "$RUNNER_TEMP/upload.log"
