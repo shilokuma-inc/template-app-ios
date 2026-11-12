@@ -1,18 +1,12 @@
 name: Build
 
+# ドキュメントだけの変更でも実行する。ブランチの保護（ルールセット）で build / build を必須にしているため、
+# paths-ignore で飛ばすとチェックが出ず、PR をマージできなくなる（AskHub のワーカーも子 PR のチェックを待ち続ける）
 on:
   push:
-    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
     branches:
       - '**'
   pull_request:
-    # ドキュメントだけの変更では、macOS ランナーの枠を使わないよう Build を実行しない
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
