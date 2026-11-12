@@ -101,6 +101,36 @@ jobs:
           done
           echo "署名の識別子を直したフレームワーク: ${fixed} 個"
 
+      - name: Embed entitlements into the unsigned archive
+        # 署名なし（CODE_SIGNING_ALLOWED=NO）の Archive では、プロジェクトの entitlements のファイル（CODE_SIGN_ENTITLEMENTS）がアプリに入らない。
+        # Export は Archive の中のアプリを再署名するだけなので、そのままだと配信ビルドには基本の entitlement
+        # （application-identifier など）しか付かず、WeatherKit などが実機で動かない。
+        # entitlements のファイルでアプリをアドホック署名しておく（本番の署名は Export がする）。
+        # ファイルの中の $(AppIdentifierPrefix) のような変数は、ここでは展開されない。残ったまま書き出されたら、書き出したあとの確認で落ちる。
+        # 対象はアプリ本体だけ（App Extension の entitlements は入れない）
+        run: |
+          # ビルド設定を読めなかったら、ここで止める（パイプにつなぐと失敗が隠れて「ファイルなし」の扱いになり、確認の手順も飛ばされる）
+          if ! settings=$(xcodebuild -showBuildSettings \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -sdk iphoneos \
+            -configuration Release 2> "$RUNNER_TEMP/show-build-settings.log"); then
+            cat "$RUNNER_TEMP/show-build-settings.log"
+            echo "::error::ビルド設定（CODE_SIGN_ENTITLEMENTS）を読めませんでした"
+            exit 1
+          fi
+          entitlements=$(printf '%s\n' "$settings" | sed -n 's/^ *CODE_SIGN_ENTITLEMENTS = //p' | head -1)
+          echo "ENTITLEMENTS_PATH=$entitlements" >> "$GITHUB_ENV"
+          if [[ -z "$entitlements" ]]; then
+            echo "entitlements のファイルはありません"
+            exit 0
+          fi
+          app_path=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$RUNNER_TEMP/build.xcarchive/Info.plist")
+          app="$RUNNER_TEMP/build.xcarchive/Products/$app_path"
+          codesign --force --sign - --entitlements "$entitlements" "$app"
+          echo "アプリに入れた entitlements (${entitlements}):"
+          codesign -d --entitlements - --xml "$app" | plutil -p -
+
       - name: Create ExportOptions.plist and API private key
         # Secrets はシェル展開ではなく env 経由で渡す
         env:
