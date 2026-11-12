@@ -101,6 +101,36 @@ jobs:
           done
           echo "署名の識別子を直したフレームワーク: ${fixed} 個"
 
+      - name: Embed entitlements into the unsigned archive
+        # 署名なし（CODE_SIGNING_ALLOWED=NO）の Archive では、プロジェクトの entitlements のファイル（CODE_SIGN_ENTITLEMENTS）がアプリに入らない。
+        # Export は Archive の中のアプリを再署名するだけなので、そのままだと配信ビルドには基本の entitlement
+        # （application-identifier など）しか付かず、WeatherKit などが実機で動かない。
+        # entitlements のファイルでアプリをアドホック署名しておく（本番の署名は Export がする）。
+        # ファイルの中の $(AppIdentifierPrefix) のような変数は、ここでは展開されない。残ったまま書き出されたら、書き出したあとの確認で落ちる。
+        # 対象はアプリ本体だけ（App Extension の entitlements は入れない）
+        run: |
+          # ビルド設定を読めなかったら、ここで止める（パイプにつなぐと失敗が隠れて「ファイルなし」の扱いになり、確認の手順も飛ばされる）
+          if ! settings=$(xcodebuild -showBuildSettings \
+            -project "$PROJECT_NAME.xcodeproj" \
+            -scheme "$SCHEME" \
+            -sdk iphoneos \
+            -configuration Release 2> "$RUNNER_TEMP/show-build-settings.log"); then
+            cat "$RUNNER_TEMP/show-build-settings.log"
+            echo "::error::ビルド設定（CODE_SIGN_ENTITLEMENTS）を読めませんでした"
+            exit 1
+          fi
+          entitlements=$(printf '%s\n' "$settings" | sed -n 's/^ *CODE_SIGN_ENTITLEMENTS = //p' | head -1)
+          echo "ENTITLEMENTS_PATH=$entitlements" >> "$GITHUB_ENV"
+          if [[ -z "$entitlements" ]]; then
+            echo "entitlements のファイルはありません"
+            exit 0
+          fi
+          app_path=$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$RUNNER_TEMP/build.xcarchive/Info.plist")
+          app="$RUNNER_TEMP/build.xcarchive/Products/$app_path"
+          codesign --force --sign - --entitlements "$entitlements" "$app"
+          echo "アプリに入れた entitlements (${entitlements}):"
+          codesign -d --entitlements - --xml "$app" | plutil -p -
+
       - name: Create ExportOptions.plist and API private key
         # Secrets はシェル展開ではなく env 経由で渡す
         env:
@@ -126,6 +156,43 @@ jobs:
             -authenticationKeyPath "$API_KEY_PATH" \
             -authenticationKeyID "$APPLE_API_KEY_ID" \
             -authenticationKeyIssuerID "$APPLE_API_ISSUER_ID"
+
+      - name: Verify entitlements of the exported IPA
+        # entitlements のファイルに書いた項目が、書き出した IPA のアプリにも入っているかを確かめる。
+        # 欠けたまま配信すると、ビルドもアップロードも成功するのに、実機でその機能だけ動かない。
+        # 比べるのは項目の有無だけ（aps-environment のように、Export が値を配信用に書き換える項目があるため）。
+        # 値は、展開されていない変数 $(…) が残っていないかだけを見る
+        run: |
+          if [[ -z "$ENTITLEMENTS_PATH" ]]; then
+            echo "entitlements のファイルはありません"
+            exit 0
+          fi
+          rm -rf "$RUNNER_TEMP/ipa-check"
+          mkdir -p "$RUNNER_TEMP/ipa-check"
+          ipa=$(find "$RUNNER_TEMP/export" -maxdepth 1 -name '*.ipa' | head -1)
+          unzip -q "$ipa" -d "$RUNNER_TEMP/ipa-check"
+          app=$(find "$RUNNER_TEMP/ipa-check/Payload" -maxdepth 1 -name '*.app' | head -1)
+          codesign -d --entitlements - --xml "$app" > "$RUNNER_TEMP/ipa-check/exported.plist"
+          echo "書き出した IPA の entitlements:"
+          plutil -p "$RUNNER_TEMP/ipa-check/exported.plist"
+          python3 - "$ENTITLEMENTS_PATH" "$RUNNER_TEMP/ipa-check/exported.plist" <<'PY'
+          import plistlib
+          import sys
+
+          with open(sys.argv[1], "rb") as file:
+              wanted = plistlib.load(file)
+          with open(sys.argv[2], "rb") as file:
+              exported = plistlib.load(file)
+          missing = [key for key in wanted if key not in exported]
+          if missing:
+              print("::error::書き出した IPA に入っていない entitlement: " + ", ".join(missing))
+              sys.exit(1)
+          unexpanded = [key for key, value in exported.items() if "$(" in repr(value)]
+          if unexpanded:
+              print("::error::書き出した IPA の entitlement に、展開されていない変数 $(…) が残っています: " + ", ".join(unexpanded))
+              sys.exit(1)
+          print("entitlements のファイルの項目は、すべて入っています: " + ", ".join(wanted))
+          PY
 
       - name: Upload IPA to GitHub
         uses: actions/upload-artifact@v7
