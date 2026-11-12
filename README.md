@@ -149,6 +149,7 @@ Upload ワークフローは、アップロードの前に TestFlight の内部�
 - ドキュメントだけの変更（`**/*.md`、`docs/**`）では Build を実行しません。Upload（`develop` / `release/**` への push）と Archive（`main` への push）は、ドキュメントだけの変更でも実行します
 - 作業ブランチへの push では、時間のかかる UI テスト（`<プロジェクト名>UITests`）を省いて Unit テストだけ実行します。UI テストは Pull Request の作成時と `main` / `develop` / `release/**` への push で実行します。Fork からの Pull Request は push で実行されないため、更新（synchronize）を含むすべてのイベントで UI テストまで実行します
 - Xcode のバージョンは [.github/workflows/_build.yml](.github/workflows/_build.yml) と [.github/workflows/_archive.yml](.github/workflows/_archive.yml) の `xcode-version` で固定しています。Environment の更新時はあわせて変更してください
+- Capability（WeatherKit など）を足して entitlements のファイル（ビルド設定 `CODE_SIGN_ENTITLEMENTS`）ができたら、Archive / Upload はその内容を配信ビルドにも入れ、書き出した IPA に項目がそろっているかを確かめます（欠けていれば失敗します）。Archive を署名なしで作るので、何もしないと配信ビルドから entitlement が落ちるためです。対象はアプリ本体だけで、ファイルの中の `$(AppIdentifierPrefix)` のような変数は展開しません
 
 ### 7. PR 本文のスクリーンショット
 
