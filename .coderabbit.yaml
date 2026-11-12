@@ -12,9 +12,8 @@ reviews:
     enabled: true
     drafts: false
     # デフォルトブランチ (develop) 以外に向けた PR もレビューする。
-    # ralph-loop の子 PR（epic/** 宛て）は対象に入れない。レート制限が PR の作者単位で、
-    # 全リポジトリのループが 1 つの枠を取り合うため。子 PR は第三者としてのセルフレビューで確かめ、
-    # CodeRabbit は epic → develop の最終 PR でレビューする（ralph-kit の README.md）。
+    # AskHub の子 PR（作業ブランチ askhub/** 宛て）は対象に入れない。レート制限が PR の作者単位で、
+    # 全リポジトリの AskHub が 1 つの枠を取り合うため。CodeRabbit は作業ブランチ → develop の最終 PR でレビューする。
     base_branches:
       - "release/.*"
       - "main"

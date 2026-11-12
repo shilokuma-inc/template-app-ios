@@ -74,7 +74,7 @@ git ls-files -z \
       echo "  $file"
     done
 
-# 3) GitHub リポジトリの Discussions を有効にする（ralph-loop はゴールを Discussion で受け取る）
+# 3) GitHub リポジトリの Discussions を有効にする（AskHub は依頼と質問を Discussion に写す）
 #    gh が無い・権限が無いなどで有効にできなくても、リネームは止めずに手順を表示する
 echo "==> Discussions を有効化"
 if ! command -v gh >/dev/null 2>&1; then
