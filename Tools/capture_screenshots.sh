@@ -15,6 +15,7 @@ set -euo pipefail
 # 1 回ビルドしたものを使い回すので、言語を増やしても時間は大きく伸びない。
 #
 # 出力先: $SCREENSHOTS_DIR/<表示サイズ>/<言語>/01_….png …（既定は build/screenshots）
+# 撮るたびに <表示サイズ> のフォルダを作り直すので、言語を絞って撮ると、撮った言語の画像だけが残る。
 #
 # Xcode は表示サイズの xcodeVersion（AppStore/screenshots.json）のものを使う。今の Xcode（DEVELOPER_DIR か xcode-select）が
 # 違えば /Applications から探して DEVELOPER_DIR に入れる。CI ではワークフローが選んだ Xcode が合っているかを確かめるだけにする。
@@ -242,11 +243,14 @@ capture_when_settled() {
 LANGUAGE_LIST="$($CONFIG languages "$LANGUAGES")"
 SCENE_LIST="$($CONFIG scenes)"
 
+# 前に撮った画像が混ざらないよう、表示サイズのフォルダごと作り直す。
+# 言語ごとに作り直すだけだと、撮らなかった言語の古い画像が残り、最後のアルファ除去で更新時刻も新しくなって、
+# 検証も通ってしまう（手元で言語を絞って撮ったときに起きた。CI は毎回まっさらなので起きない）
+rm -rf "${SCREENSHOTS_DIR:?}/$DISPLAY_TYPE"
+
 # simctl が標準入力を読んでしまわないよう、一覧は別のファイル記述子から読む
 while IFS=$'\t' read -r -u 3 language apple_language apple_locale store_locale; do
     destination="$SCREENSHOTS_DIR/$DISPLAY_TYPE/$language"
-    # 撮り直しのたびに古い画像が混ざらないよう、言語ごとに作り直す
-    rm -rf "$destination"
     mkdir -p "$destination"
     echo "::group::${DISPLAY_TYPE} / ${language}（${store_locale}）"
     while IFS=$'\t' read -r -u 4 file scene; do
