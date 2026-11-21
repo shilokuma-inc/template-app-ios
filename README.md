@@ -56,6 +56,21 @@ SwiftUI のプロジェクト一式と、ビルド・テスト・Archive・TestF
 
 GitHub の「Use this template」からリポジトリを作成し、clone します。
 
+作成したら、`.github/workflows/` のワークフローがすべて GitHub に登録されているか（Actions の一覧に出ているか）を確かめます。
+作成のときに一部しか登録されないことがあり（2026-11 に barless-ios・kawarin-apple で起きました）、
+手動実行だけのワークフロー（`Screenshots/App Store`・`Metadata/App Store`・`Creative assets/App Store` など）は、登録されていないと Actions の画面にも `gh workflow run` にも出ません。
+push や PR で動くワークフローは動いたときに登録されますが、手動実行だけのものは自分では動かないので、登録されないままになります。
+
+```bash
+# 登録されていないワークフローを出す（何も出なければよい。一覧を取れなければ何も比べずに止まる）
+registered=$(gh api "repos/{owner}/{repo}/actions/workflows?per_page=100" --jq '.workflows[].path') &&
+  comm -23 <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) | sort) \
+    <(printf '%s\n' "$registered" | sort)
+```
+
+出てきたファイルは、そのファイルを変更するコミット（冒頭のコメントを今の動きに合わせて直すなど）を、既定のブランチ（develop）に push するか PR でマージすると、すぐに登録されます。
+入れたら、もう一度上のコマンドを流して、何も出ないことを確かめます。
+
 ### 2. プロジェクト名を変更する
 
 `IOSTemplateApp` を新しいアプリ名に一括変更するスクリプトを用意しています。
