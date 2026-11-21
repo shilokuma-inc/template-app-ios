@@ -62,12 +62,14 @@ GitHub の「Use this template」からリポジトリを作成し、clone し�
 push や PR で動くワークフローは動いたときに登録されますが、手動実行だけのものは自分では動かないので、登録されないままになります。
 
 ```bash
-# 登録されていないワークフローを出す（何も出なければよい）
-comm -23 <(ls .github/workflows/*.yml | sort) \
-  <(gh api "repos/{owner}/{repo}/actions/workflows?per_page=100" --jq '.workflows[].path' | sort)
+# 登録されていないワークフローを出す（何も出なければよい。一覧を取れなければ何も比べずに止まる）
+registered=$(gh api "repos/{owner}/{repo}/actions/workflows?per_page=100" --jq '.workflows[].path') &&
+  comm -23 <(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) | sort) \
+    <(printf '%s\n' "$registered" | sort)
 ```
 
-出てきたファイルは、そのファイルを変更するコミット（冒頭のコメントを今の動きに合わせて直すなど）を既定のブランチ（develop）に入れると、すぐに登録されます。
+出てきたファイルは、そのファイルを変更するコミット（冒頭のコメントを今の動きに合わせて直すなど）を、既定のブランチ（develop）に push するか PR でマージすると、すぐに登録されます。
+入れたら、もう一度上のコマンドを流して、何も出ないことを確かめます。
 
 ### 2. プロジェクト名を変更する
 
