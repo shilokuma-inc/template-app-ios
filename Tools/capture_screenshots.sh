@@ -19,6 +19,7 @@ set -euo pipefail
 #
 # Xcode は表示サイズの xcodeVersion（AppStore/screenshots.json）のものを使う。今の Xcode（DEVELOPER_DIR か xcode-select）が
 # 違えば /Applications から探して DEVELOPER_DIR に入れる。CI ではワークフローが選んだ Xcode が合っているかを確かめるだけにする。
+# どこで撮っても同じ画像になるよう、Simulator の言語は英語にする（理由は該当する箇所）。
 
 DISPLAY_TYPE="${1:?表示サイズ（例: APP_IPHONE_67）を指定してください}"
 LANGUAGES="${2:-}"
@@ -140,6 +141,28 @@ trap 'status=$?; if [ "$status" -eq 0 ] && [ "$FINISHED" -ne 1 ]; then status=1;
 
 echo "機種: ${DEVICE_NAME}（${UDID}）"
 
+# Simulator の言語と地域を、最初に起動する前に英語（米国）にする。
+# 作った Simulator は Mac の言語と地域を引き継ぐので、そのままだと iPad のステータスバーの日付の書き方が、撮る Mac によって変わる
+# （日本語の Mac では「9:41 11月21日 (土)」、CI の英語のランナーでは「9:41 AM Sat Nov 21」）。起動した後に変えると、起動し直すまで効かない。
+# アプリの言語は撮るたびに起動引数で渡すので、ここで決まるのはステータスバーなどのシステムの表示だけ。
+# このファイルのパスを defaults write に渡すと、Mac 自身の言語の設定に書き込まれてしまうので、plutil で書く
+SIMULATOR_DATA="$(xcrun simctl list -j devices | python3 -c "
+import json, sys
+for devices in json.load(sys.stdin)['devices'].values():
+    for device in devices:
+        if device['udid'] == sys.argv[1]:
+            print(device['dataPath'])
+            sys.exit(0)
+sys.exit(1)
+" "$UDID")"
+GLOBAL_PREFERENCES="$SIMULATOR_DATA/Library/Preferences/.GlobalPreferences.plist"
+if [ ! -f "$GLOBAL_PREFERENCES" ]; then
+    mkdir -p "$(dirname "$GLOBAL_PREFERENCES")"
+    plutil -create xml1 "$GLOBAL_PREFERENCES"
+fi
+plutil -replace AppleLanguages -json '["en-US"]' "$GLOBAL_PREFERENCES"
+plutil -replace AppleLocale -string en_US "$GLOBAL_PREFERENCES"
+
 # MARK: - ビルド
 
 # SwiftLint などのビルドツールプラグインとマクロの信頼確認は、Xcode.app で一度信頼すれば要らない。
@@ -174,7 +197,9 @@ BUNDLE_ID="$(printf '%s\n' "$SETTINGS" | awk -F' = ' '/ PRODUCT_BUNDLE_IDENTIFIE
 xcrun simctl boot "$UDID"
 xcrun simctl bootstatus "$UDID" -b >/dev/null
 
-# App Store のスクリーンショットらしく、上端を整える
+# App Store のスクリーンショットらしく、上端を整える。
+# 日付は固定しない（iPad は時刻の横に撮った日の日付が出る）。--time に ISO の日時を渡すと、手元の Mac（Xcode 27 を入れた Mac）では
+# 日付も固定できるが曜日と月が英語になり、CI の macOS ランナーでは日付だけが黙って無視される（2026-11 に確かめた）
 xcrun simctl status_bar "$UDID" override \
     --time "9:41" \
     --dataNetwork wifi \
@@ -199,6 +224,7 @@ if [ -n "$DISPLAY_ID" ]; then
     DISPLAY_OPTION=(--display="$DISPLAY_ID")
 fi
 echo "撮る画面: ${DISPLAY_ID:-既定}（${EXPECTED_SIZE}）"
+echo "Simulator の言語: $(xcrun simctl spawn "$UDID" defaults read -g AppleLocale 2>/dev/null || echo 不明)"
 
 xcrun simctl install "$UDID" "$BUILT_DIR/$APP_NAME"
 
