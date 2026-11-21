@@ -191,7 +191,13 @@ App Store のプロダクトページに載せるものは、`AppStore/` の JSO
 - macOS ランナーの枠を開発のビルドと取り合わないよう、撮影は 1 本ずつ流します。6.3 inch（`deriveFrom`）は撮らずに 6.9 inch を ubuntu で縮めて作り、App Store Connect への反映も ubuntu で行います
 - iPhone Duo は Xcode 27.1 と iOS 27.1 のランタイムが要るので、`xcode-27` のランナーで撮ります（`screenshots.json` の `runsOn` / `xcodeVersion`）
 - Simulator のランタイムは、機種ごとに「その機種に対応したもののうち、ビルドする SDK 以下で一番新しいもの」を選びます（iOS 27.1 のランタイムは iPhone Duo にしか対応しないので、Xcode 27.1 でもほかの機種は iOS 27.0 などで撮ります）
-- 手元で撮るなら `Tools/capture_screenshots.sh APP_IPHONE_67 ja`（出力は `build/screenshots/`）
+- 手元（Mac）でも、CI と同じ画像になるように撮れます。`Tools/capture_screenshots.sh APP_IPHONE_67`（言語を絞るなら第 2 引数に `ja,en`）で、出力は `build/screenshots/<表示サイズ>/<言語>/` です
+  - Xcode は、表示サイズの `xcodeVersion` の版を `/Applications` から探して使います（`xcode-select` が別の版の Mac でも、6.9 inch・iPad は 26.6、iPhone Duo は 27.1 で撮ります）。見つからなければ止まるので、その版の Xcode を入れるか、`DEVELOPER_DIR` で指定します。CI では、ワークフローが選んだ Xcode が `xcodeVersion` と合っているかだけを確かめます
+  - 撮るたびに `build/screenshots/<表示サイズ>/` を作り直します。言語を絞って撮ると、そのフォルダには撮った言語だけが残ります（以前は撮らなかった言語の古い画像が残り、更新時刻も新しくなって検証も通っていました）
+  - Simulator の言語は、Mac の言語によらず英語（en-US）にして作ります。iPad のステータスバーの日付の書き方を CI と同じ「9:41 AM Sat Nov 21」にするためです（アプリの言語は撮るたびに起動引数で渡すので、変わるのはシステムの表示だけ）。日付は撮った日のままです。`simctl status_bar` に ISO の日時を渡しても、CI の macOS ランナーでは日付が変わらないためです
+  - iPhone の Dynamic Island は、CI の Simulator では画面そのものに描かれて写り、手元の Mac では写りません。手元では `--mask=alpha` で撮った Dynamic Island をマスク無しの画像に重ねて（`Tools/overlay_screenshot.swift`）、CI と同じ見た目にします。時刻の文字が CI より 2px 右に寄る差は残ります
+  - 待ち時間の既定は `WARMUP_SECONDS=15`・`SETTLE_MINIMUM=4` です（CI は 60・10）。非力な Mac で 1 枚目が起動画面のまま写るときは、CI と同じ値にします
+  - 撮影用の Simulator（`<プロジェクト名>-Screenshot-<表示サイズ>`）は終わると消します。DerivedData は `$TMPDIR/<プロジェクト名>ScreenshotDerivedData-Xcode<版>` に残るので、要らなければ消します（`DERIVED_DATA` で場所を変えられます）
 - 反映は全言語を上げてから、Apple 側の取り込みをまとめて 20 分まで待ちます。同じ画像（順番とチェックサムが一致）が載っている言語は、上げ直さずに取り込みの完了を待つだけにします
 - 反映だけが失敗したとき（Apple 側の取り込みが 20 分で終わらないなど）は、撮り直さずに、入力 `from_run` にその実行の ID を入れて流し直します。その実行の artifact を反映し、同じ画像が載っている言語は上げ直さずに取り込みの完了を待ちます（どのブランチからでも動きます。撮影元は `release/**` の実行に限ります）
 - 流し直しても同じ画像の取り込みが何時間も終わらないときは、Apple 側で止まっています。入力 `reupload_pending` をオンにすると、取り込みが終わっていない画像を含むセットを消して上げ直します
