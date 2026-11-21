@@ -256,8 +256,10 @@ OVERLAY="$BIN_DIR/overlay_screenshot"
 xcrun swiftc -O "$TOOLS_DIR/overlay_screenshot.swift" -o "$OVERLAY"
 screenshot "$BIN_DIR/plain.png"
 screenshot_with_mask "$BIN_DIR/masked.png"
+# 重ねて変わった画素の数。if の条件の中で直接呼ぶと、ツールが失敗しても止まらずに「重ねない」になるので、先に受け取る
+CHANGED_PIXELS="$("$OVERLAY" "$BIN_DIR/plain.png" "$BIN_DIR/masked.png" "$BIN_DIR/merged.png")"
 ADD_DYNAMIC_ISLAND=0
-if [ "$("$OVERLAY" "$BIN_DIR/plain.png" "$BIN_DIR/masked.png" "$BIN_DIR/merged.png")" -gt 0 ]; then
+if [ "$CHANGED_PIXELS" -gt 0 ]; then
     ADD_DYNAMIC_ISLAND=1
 fi
 echo "Dynamic Island を重ねる: $([ "$ADD_DYNAMIC_ISLAND" = 1 ] && echo はい || echo いいえ（重ねても変わらない）)"
