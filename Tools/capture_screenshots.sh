@@ -15,6 +15,9 @@ set -euo pipefail
 # 1 回ビルドしたものを使い回すので、言語を増やしても時間は大きく伸びない。
 #
 # 出力先: $SCREENSHOTS_DIR/<表示サイズ>/<言語>/01_….png …（既定は build/screenshots）
+#
+# Xcode は表示サイズの xcodeVersion（AppStore/screenshots.json）のものを使う。今の Xcode（DEVELOPER_DIR か xcode-select）が
+# 違えば /Applications から探して DEVELOPER_DIR に入れる。CI ではワークフローが選んだ Xcode が合っているかを確かめるだけにする。
 
 DISPLAY_TYPE="${1:?表示サイズ（例: APP_IPHONE_67）を指定してください}"
 LANGUAGES="${2:-}"
@@ -30,7 +33,8 @@ SIMULATOR_PREFIX="$($CONFIG app simulatorPrefix)"
 SCREENSHOTS_DIR="${SCREENSHOTS_DIR:-$PWD/build/screenshots}"
 # DerivedData はリポジトリ外に置く。リポジトリ内に置くと、ビルドフェーズの SwiftLint が
 # SPM 依存のソース（DerivedData/SourcePackages/checkouts）まで lint して、ビルドが失敗することがある
-DERIVED_DATA="${DERIVED_DATA:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/${SIMULATOR_PREFIX}ScreenshotDerivedData}"
+# 表示サイズによって Xcode が変わる（iPhone Duo は 27.1）ので、Xcode の版ごとに分ける
+DERIVED_DATA="${DERIVED_DATA:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/${SIMULATOR_PREFIX}ScreenshotDerivedData-Xcode$($CONFIG xcode-version "$DISPLAY_TYPE")}"
 # 起動してから画面が落ち着くまで待つ上限と、落ち着いたとみなすまでの最短の待ち（秒）
 SETTLE_TIMEOUT="${SETTLE_TIMEOUT:-40}"
 SETTLE_MINIMUM="${SETTLE_MINIMUM:-4}"
@@ -41,6 +45,18 @@ if [ -n "$($CONFIG derive-from "$DISPLAY_TYPE")" ]; then
     echo "$DISPLAY_TYPE は deriveFrom で縮めて作る表示サイズなので撮りません（Tools/derive_screenshots.py を使う）" >&2
     exit 1
 fi
+
+# MARK: - Xcode
+
+# Xcode が違うと Simulator のランタイム（iOS の版）が変わり、ステータスバーのアイコンの形などが CI と変わる
+# （xcode-select が Xcode 27.1 の Mac では、6.9 inch が iOS 27.0 で撮られた。CI は Xcode 26.6 の iOS 26.5）
+if [ "${GITHUB_ACTIONS:-}" = true ]; then
+    DEVELOPER_DIR="$($CONFIG developer-dir "$DISPLAY_TYPE" --selected-only)"
+else
+    DEVELOPER_DIR="$($CONFIG developer-dir "$DISPLAY_TYPE")"
+fi
+export DEVELOPER_DIR
+echo "Xcode: $(xcodebuild -version | head -n 1)（${DEVELOPER_DIR}）"
 
 # project.yml から .xcodeproj を作るリポジトリでは、先に生成する
 if [ "$($CONFIG app xcodegen)" = "true" ] && [ ! -d "$PROJECT" ]; then

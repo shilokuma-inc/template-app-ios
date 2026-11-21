@@ -18,6 +18,8 @@
     python3 Tools/app_store_config.py devices APP_IPHONE_67
     python3 Tools/app_store_config.py sizes APP_IPHONE_67
     python3 Tools/app_store_config.py derive-from APP_IPHONE_61   # 縮めて作る元の表示サイズ（無ければ空）
+    python3 Tools/app_store_config.py xcode-version APP_IPHONE_67  # 撮影に使う Xcode の版
+    python3 Tools/app_store_config.py developer-dir APP_IPHONE_67  # その版の Xcode の DEVELOPER_DIR（--selected-only で今の Xcode だけを見る）
     python3 Tools/app_store_config.py display-types [APP_IPHONE_67,...]  # GitHub Actions の matrix 用 JSON
     python3 Tools/app_store_config.py bundle-id
 """
@@ -27,7 +29,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import plistlib
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -43,6 +47,9 @@ MAX_SCREENSHOTS = 10
 #: screenshots.json の表示サイズで runsOn / xcodeVersion を省いたときの既定
 DEFAULT_RUNS_ON = "macos-latest"
 DEFAULT_XCODE_VERSION = "26.6"
+
+#: 手元で撮るとき、xcodeVersion の Xcode を探す場所
+XCODE_SEARCH_DIRS = (Path("/Applications"), Path.home() / "Applications")
 
 
 class Language(NamedTuple):
@@ -227,11 +234,82 @@ def matrix(selected: list[str] | None = None) -> dict:
             "display_type": name,
             "label": entry["label"],
             "runs_on": entry.get("runsOn") or DEFAULT_RUNS_ON,
-            "xcode_version": entry.get("xcodeVersion") or DEFAULT_XCODE_VERSION,
+            "xcode_version": xcode_version(name),
         })
     # 反映は、指定された表示サイズだけ（元にするために撮っただけのものは反映しない）
     upload = [{"display_type": name, "label": display_type(name)["label"]} for name in names]
     return {"capture": capture_entries, "derive": derive, "upload": upload}
+
+
+# MARK: - Xcode
+
+
+def xcode_version(name: str) -> str:
+    """表示サイズを撮る Xcode の版。CI は maxim-lobanov/setup-xcode にこの値を渡す。"""
+    return display_type(name).get("xcodeVersion") or DEFAULT_XCODE_VERSION
+
+
+def _version_numbers(version: str) -> list[int]:
+    return [int(part) for part in re.findall(r"\d+", version)]
+
+
+def xcode_version_matches(installed: str, wanted: str) -> bool:
+    """installed（例: 26.6.1）が wanted（例: 26.6）の Xcode か。setup-xcode と同じく、wanted に書いた桁までを比べる。"""
+    wanted_numbers = _version_numbers(wanted)
+    installed_numbers = _version_numbers(installed) + [0] * len(wanted_numbers)
+    return bool(wanted_numbers) and installed_numbers[:len(wanted_numbers)] == wanted_numbers
+
+
+def _xcode_app_version(app: Path) -> str | None:
+    version_file = app / "Contents" / "version.plist"
+    if not version_file.is_file():
+        return None
+    with version_file.open("rb") as file:
+        return plistlib.load(file).get("CFBundleShortVersionString")
+
+
+def _selected_developer_dir() -> Path | None:
+    """今使われる Xcode の DEVELOPER_DIR（環境変数 DEVELOPER_DIR、無ければ xcode-select の値）。"""
+    if os.environ.get("DEVELOPER_DIR"):
+        return Path(os.environ["DEVELOPER_DIR"])
+    try:
+        selected = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return Path(selected) if selected else None
+
+
+def developer_dir(name: str, selected_only: bool = False) -> str:
+    """表示サイズの xcodeVersion に合う Xcode の DEVELOPER_DIR（<Xcode>.app/Contents/Developer）。
+
+    今の Xcode（DEVELOPER_DIR か xcode-select）が合えばそれを、合わなければ /Applications などから探す。
+    selected_only なら探さずに止める（CI ではワークフローが選んだ Xcode が合っているかを確かめるだけにする）。
+    """
+    wanted = xcode_version(name)
+    selected = _selected_developer_dir()
+    selected_version = _xcode_app_version(selected.parent.parent) if selected else None
+    if selected is not None and selected_version and xcode_version_matches(selected_version, wanted):
+        return str(selected)
+    current = f"Xcode {selected_version}（{selected}）" if selected_version else f"{selected or 'なし'}"
+    if selected_only:
+        raise SystemExit(f"今の Xcode が、{SCREENSHOTS_FILE.name} の {name} の xcodeVersion（{wanted}）と違います: {current}")
+    installed = [
+        (version, app)
+        for directory in XCODE_SEARCH_DIRS if directory.is_dir()
+        for app in sorted(directory.glob("Xcode*.app"))
+        if (version := _xcode_app_version(app))
+    ]
+    matches = [(version, app) for version, app in installed if xcode_version_matches(version, wanted)]
+    if not matches:
+        listing = ", ".join(f"{app}（{version}）" for version, app in installed) or "なし"
+        raise SystemExit(
+            f"{SCREENSHOTS_FILE.name} の {name} の xcodeVersion（{wanted}）の Xcode が見つかりません。\n"
+            f"今の Xcode: {current}\n入っている Xcode: {listing}\n"
+            f"Xcode {wanted} を入れるか、DEVELOPER_DIR でその Xcode を指定してください"
+        )
+    # 26.6 に 26.6 と 26.6.1 が合うときは新しい方（setup-xcode と同じ）
+    _, app = max(matches, key=lambda match: _version_numbers(match[0]))
+    return str(app / "Contents" / "Developer")
 
 
 # MARK: - Bundle ID
@@ -345,9 +423,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument(
         "command",
-        choices=("app", "languages", "scenes", "devices", "sizes", "derive-from", "display-types", "bundle-id"),
+        choices=(
+            "app", "languages", "scenes", "devices", "sizes", "derive-from", "display-types", "bundle-id",
+            "xcode-version", "developer-dir",
+        ),
     )
     parser.add_argument("argument", nargs="?", default=None)
+    parser.add_argument("--selected-only", action="store_true", help="developer-dir で、今の Xcode が合うかだけを確かめる")
     args = parser.parse_args()
 
     if args.command == "app":
@@ -369,6 +451,13 @@ def main() -> int:
         if not args.argument:
             raise SystemExit("表示サイズ（例: APP_IPHONE_61）を指定してください")
         print(display_type(args.argument).get("deriveFrom") or "")
+    elif args.command in ("xcode-version", "developer-dir"):
+        if not args.argument:
+            raise SystemExit("表示サイズ（例: APP_IPHONE_67）を指定してください")
+        if args.command == "xcode-version":
+            print(xcode_version(args.argument))
+        else:
+            print(developer_dir(args.argument, selected_only=args.selected_only))
     elif args.command == "bundle-id":
         print(bundle_id())
     else:
