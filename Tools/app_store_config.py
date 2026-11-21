@@ -261,11 +261,26 @@ def xcode_version_matches(installed: str, wanted: str) -> bool:
 
 
 def _xcode_app_version(app: Path) -> str | None:
+    """Xcode.app の版（例: 26.6）。正式版でない（ベータなど）ときは None。
+
+    ベータも CFBundleShortVersionString は正式版と同じ（26.6 など）なので、LicenseInfo.plist の licenseType で見分ける
+    （正式版は GM）。CI の setup-xcode も、版だけを指定したときは正式版を選ぶ。
+    """
     version_file = app / "Contents" / "version.plist"
     if not version_file.is_file():
         return None
+    license_file = app / "Contents" / "Resources" / "LicenseInfo.plist"
+    if license_file.is_file():
+        with license_file.open("rb") as file:
+            if plistlib.load(file).get("licenseType", "GM") != "GM":
+                return None
     with version_file.open("rb") as file:
         return plistlib.load(file).get("CFBundleShortVersionString")
+
+
+def _xcode_app_for(developer_dir: Path) -> Path:
+    """DEVELOPER_DIR から Xcode.app のパスを出す。DEVELOPER_DIR は <Xcode>.app/Contents/Developer のほか、<Xcode>.app そのものでもよい。"""
+    return developer_dir if developer_dir.suffix == ".app" else developer_dir.parent.parent
 
 
 def _selected_developer_dir() -> Path | None:
@@ -287,10 +302,11 @@ def developer_dir(name: str, selected_only: bool = False) -> str:
     """
     wanted = xcode_version(name)
     selected = _selected_developer_dir()
-    selected_version = _xcode_app_version(selected.parent.parent) if selected else None
-    if selected is not None and selected_version and xcode_version_matches(selected_version, wanted):
-        return str(selected)
-    current = f"Xcode {selected_version}（{selected}）" if selected_version else f"{selected or 'なし'}"
+    selected_app = _xcode_app_for(selected) if selected else None
+    selected_version = _xcode_app_version(selected_app) if selected_app else None
+    if selected_app is not None and selected_version and xcode_version_matches(selected_version, wanted):
+        return str(selected_app / "Contents" / "Developer")
+    current = f"Xcode {selected_version}（{selected}）" if selected_version else f"{selected or 'なし'}（版を読めないか、正式版ではない）"
     if selected_only:
         raise SystemExit(f"今の Xcode が、{SCREENSHOTS_FILE.name} の {name} の xcodeVersion（{wanted}）と違います: {current}")
     installed = [
