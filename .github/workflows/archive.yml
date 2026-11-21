@@ -1,12 +1,9 @@
 name: Archive
 
-# main への push で Archive → IPA Export まで通ることを確認する（アップロードはしない）。
-# develop / release/** は upload.yml が Archive を含むため、ここでは実行しない。
-# 必要なときに手動でも確認できるよう workflow_dispatch も置く。
+# Archive → IPA Export まで通ることを確認する（アップロードはしない）。手動実行のみ。
+# main への push では Build だけを実行する（main には develop / release/** で Upload を通したものがマージされるため）。
+# develop / release/** は upload.yml が Archive を含む。
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
