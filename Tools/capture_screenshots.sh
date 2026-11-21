@@ -19,7 +19,7 @@ set -euo pipefail
 #
 # Xcode は表示サイズの xcodeVersion（AppStore/screenshots.json）のものを使う。今の Xcode（DEVELOPER_DIR か xcode-select）が
 # 違えば /Applications から探して DEVELOPER_DIR に入れる。CI ではワークフローが選んだ Xcode が合っているかを確かめるだけにする。
-# どこで撮っても同じ画像になるよう、Simulator の言語は英語にする（理由は該当する箇所）。
+# どこで撮っても同じ画像になるよう、Simulator の言語は英語にし、iPhone の Dynamic Island は手元でも写す（理由はそれぞれの箇所）。
 
 DISPLAY_TYPE="${1:?表示サイズ（例: APP_IPHONE_67）を指定してください}"
 LANGUAGES="${2:-}"
@@ -133,6 +133,7 @@ echo "ランタイム: ${RUNTIME_ID}（SDK ${SDK_VERSION}）"
 cleanup() {
     xcrun simctl shutdown "$UDID" 2>/dev/null || true
     xcrun simctl delete "$UDID" 2>/dev/null || true
+    rm -rf "${BIN_DIR:-}"
 }
 # bash 3.2 では unbound variable で止まったとき EXIT トラップに終了コード 0 が渡り、失敗したのにステップが成功扱いになる。
 # 最後まで到達した印（FINISHED）が無ければ失敗として返す
@@ -240,6 +241,27 @@ screenshot() {
     xcrun simctl io "$UDID" screenshot ${DISPLAY_OPTION[@]+"${DISPLAY_OPTION[@]}"} "$1" >/dev/null 2>&1
 }
 
+screenshot_with_mask() {
+    xcrun simctl io "$UDID" screenshot ${DISPLAY_OPTION[@]+"${DISPLAY_OPTION[@]}"} --mask=alpha "$1" >/dev/null 2>&1
+}
+
+# iPhone の Dynamic Island を、どこで撮っても写す。
+# CI の macOS ランナーの Simulator は、画面そのものに Dynamic Island が描かれていて、--mask の指定にかかわらず写る。
+# 手元の Mac の Simulator には描かれず、--mask=alpha で撮ったときだけ黒で描かれる（2026-11 に確かめた）。
+# --mask=alpha の画像は画面の四隅も透明になり、iPhone Duo の外側の画面ではカメラの穴（CI の画像には写らない）も黒く写るので、
+# マスク無しの画像の上に、上端の中央（Dynamic Island の場所）だけを重ねる（Tools/overlay_screenshot.swift）。
+# 重ねても変わらないとき（Dynamic Island の無い iPad・iPhone Duo と、もともと写っている CI）は、撮るたびに重ねるのを省く
+BIN_DIR="$(mktemp -d)"
+OVERLAY="$BIN_DIR/overlay_screenshot"
+xcrun swiftc -O "$TOOLS_DIR/overlay_screenshot.swift" -o "$OVERLAY"
+screenshot "$BIN_DIR/plain.png"
+screenshot_with_mask "$BIN_DIR/masked.png"
+ADD_DYNAMIC_ISLAND=0
+if [ "$("$OVERLAY" "$BIN_DIR/plain.png" "$BIN_DIR/masked.png" "$BIN_DIR/merged.png")" -gt 0 ]; then
+    ADD_DYNAMIC_ISLAND=1
+fi
+echo "Dynamic Island を重ねる: $([ "$ADD_DYNAMIC_ISLAND" = 1 ] && echo はい || echo いいえ（重ねても変わらない）)"
+
 # 起動直後はシートが出てくる途中だったりするので、連続で撮った 2 枚が同じになるまで待つ。
 # 時刻はステータスバーで固定しているので、アニメーションが終われば画面は変わらない
 capture_when_settled() {
@@ -253,7 +275,12 @@ capture_when_settled() {
         elapsed=$((elapsed + 2))
         screenshot "$work/current.png"
         if cmp -s "$work/previous.png" "$work/current.png"; then
-            mv "$work/current.png" "$output"
+            if [ "$ADD_DYNAMIC_ISLAND" = 1 ]; then
+                screenshot_with_mask "$work/masked.png"
+                "$OVERLAY" "$work/current.png" "$work/masked.png" "$output" >/dev/null
+            else
+                mv "$work/current.png" "$output"
+            fi
             rm -rf "$work"
             return 0
         fi
@@ -296,7 +323,7 @@ xcrun simctl terminate "$UDID" "$BUNDLE_ID" 2>/dev/null || true
 # MARK: - 仕上げと検証
 
 # Simulator のスクリーンショットはアルファ付きの PNG で、App Store Connect は受け付けないので描き直す
-REMOVE_ALPHA="$(mktemp -d)/remove_alpha"
+REMOVE_ALPHA="$BIN_DIR/remove_alpha"
 xcrun swiftc -O "$TOOLS_DIR/remove_alpha.swift" -o "$REMOVE_ALPHA"
 find "$SCREENSHOTS_DIR/$DISPLAY_TYPE" -name '*.png' -print0 | xargs -0 "$REMOVE_ALPHA"
 
