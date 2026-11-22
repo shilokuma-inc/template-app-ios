@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "project": "IOSTemplateApp.xcodeproj",
+  "scheme": "IOSTemplateApp",
+  "platforms": ["iOS"],
+  "uiTests": "IOSTemplateAppUITests"
+}
