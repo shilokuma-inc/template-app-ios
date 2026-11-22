@@ -1,3 +1,4 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
 name: 軽作業
 description: 軽作業のIssue
 title: "【CHORE】"
