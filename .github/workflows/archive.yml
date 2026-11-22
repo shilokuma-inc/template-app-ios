@@ -16,10 +16,10 @@ concurrency:
 
 jobs:
   archive:
-    uses: shilokuma-inc/app-kit/.github/workflows/app-archive.yml@4ecdf346f1ff87c1a61172d2e0b25891e03aba63 # v1.0.1
+    uses: shilokuma-inc/app-kit/.github/workflows/app-archive.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
     with:
       # 引用符で囲む（数字と e だけのコミットを、YAML が数として読まないように）
-      app-kit-ref: '4ecdf346f1ff87c1a61172d2e0b25891e03aba63'
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
       upload: false
     secrets:
       EXPORT_OPTIONS: ${{ secrets.EXPORT_OPTIONS }}

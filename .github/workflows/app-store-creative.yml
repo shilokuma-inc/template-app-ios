@@ -1,0 +1,52 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
+# リポジトリごとの値は .github/app-kit.json に書く。版（@ の後ろのコミットと app-kit-ref）は AskHub の司令塔が書く
+name: Creative/App Store
+
+# App Store のクリエイティブアセット（プロダクトページのヘッダー・検索結果）を書き出す（上げない）。
+# AskHub の司令塔が、案（文言・色・使う画面）を入力 spec に入れて起動し、artifact creative-assets・creative-report を取り込む。
+# App Store Connect に上げるのは、人が AskHub で確かめた後の司令塔だけ。画像はリポジトリにコミットしない。
+# このファイルの名前と入力は、司令塔と合わせてある。変えるときは司令塔と一緒に変える
+on:
+  workflow_dispatch:
+    inputs:
+      spec:
+        description: '案（app-kit の schema/creative-spec.schema.json の形の JSON。AskHub の司令塔が書く）'
+        required: true
+      screenshots_run:
+        description: '6.9 inch の撮影の artifact がある実行の id。空なら、この実行で 6.9 inch を撮る'
+        required: false
+        default: ''
+      languages:
+        description: '6.9 inch を撮る言語（AppStore/languages.json の language をカンマ区切り）。空ならすべて'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: read
+
+# 新しい案を起動したら、前の案の書き出しは取り消す
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    if: inputs.screenshots_run == ''
+    uses: shilokuma-inc/app-kit/.github/workflows/app-store-screenshots.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
+    with:
+      # 引用符で囲む（数字と e だけのコミットを、YAML が数として読まないように）
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
+      display_types: APP_IPHONE_67
+      languages: ${{ inputs.languages }}
+      allow_non_release: true
+
+  creative:
+    needs: capture
+    # 撮らなかった（screenshots_run を使う）ときと、一部の言語が撮れなかったときも書き出す（無い画面は report.json に出る）
+    if: ${{ !cancelled() }}
+    uses: shilokuma-inc/app-kit/.github/workflows/app-creative-assets.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
+    with:
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
+      spec: ${{ inputs.spec }}
+      screenshots-run: ${{ inputs.screenshots_run }}
