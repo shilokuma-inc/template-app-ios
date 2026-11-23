@@ -1,413 +1,52 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
+# リポジトリごとの値は .github/app-kit.json に書く。版（@ の後ろのコミットと app-kit-ref）は AskHub の司令塔が書く
 name: Screenshots/App Store
 
-# App Store 用のスクリーンショットを、表示サイズ × 言語ぶん撮って App Store Connect に反映する。手動実行のみ。
-#
-# 撮る画面・並び順・表示サイズは AppStore/screenshots.json、言語は AppStore/languages.json、
-# ビルドする Scheme は AppStore/app.json で決める。撮影は Tools/capture_screenshots.sh が、アプリの撮影モード
-# （<プロジェクト名>/Screenshot/ScreenshotDemo.swift）を起動引数で切り替えながら行う。
-#
-# macOS ランナーの枠を開発のビルドと取り合わないよう、次の 3 つを守る。
-# - release/** ブランチから実行したときだけ撮る（リリースのときだけ撮る）
-# - 撮影は 1 本ずつ（max-parallel: 1）。同時に使う macOS ランナーは常に 1 台
-# - deriveFrom を書いた表示サイズ（6.3 inch）は撮らずに、元の表示サイズを ubuntu で縮めて作る。
-#   App Store Connect への反映も ubuntu で行う
-#
-# 反映先は「編集できる状態のバージョン」だけ。審査中・配信済みのバージョンには触らない。
-# upload を外せば撮るだけで、結果は artifact から取れる。
-# 反映だけが失敗したとき（Apple 側の取り込みが遅いなど）は、入力 from_run にその実行の ID を入れると、
-# 撮り直さずにその実行の artifact を反映し直せる。同じ画像が載っている言語は上げ直さず、取り込みの完了を待つだけ。
-
+# App Store のスクショを撮る（上げない）。AskHub の司令塔が release ブランチで起動し、artifact screenshots-<表示サイズ> を取り込む。
+# App Store Connect に上げるのは、人が AskHub で確かめた後の司令塔だけ。
+# このファイルの名前と入力は、司令塔のビルドの設定（storeScreenshots の workflow）と合わせてある。変えるときは司令塔と一緒に変える
+# 撮影でビルドするプロジェクトと Scheme は AppStore/app.json、撮る画面と表示サイズは AppStore/screenshots.json、言語は AppStore/languages.json で決める
+# （.github/app-kit.json の project・scheme は、撮影では読まない）
 on:
   workflow_dispatch:
     inputs:
       display_types:
-        description: '撮影する表示サイズ（カンマ区切り）。空なら screenshots.json の全サイズ'
+        description: '撮る表示サイズ（カンマ区切り）。空なら AppStore/screenshots.json のすべて'
         required: false
         default: ''
       languages:
-        description: '撮影する言語（カンマ区切り）。空なら languages.json の全言語'
-        required: false
-        default: ''
-      app_version:
-        description: '反映先のバージョン。空なら編集できるバージョンを自動で選ぶ'
+        description: '撮る言語（カンマ区切り）。空なら AppStore/languages.json のすべて'
         required: false
         default: ''
       upload:
-        description: 'App Store Connect に反映する（外すと撮るだけ）'
+        description: '前の版との互換のためだけにある（上げるのは AskHub の司令塔なので、true なら止まる）'
         type: boolean
-        default: true
-      missing_locales:
-        description: 'App Store Connect にその言語が無いときの扱い'
-        type: choice
-        options:
-          - fail
-          - skip
-          - create
-        default: fail
+        default: false
       allow_non_release:
-        description: 'release/** 以外のブランチでも撮る（撮影の仕組みを確かめるときだけ。反映はしない）'
+        description: 'release/** 以外のブランチでも撮る（撮影の仕組みを確かめるときだけ）'
         type: boolean
         default: false
-      from_run:
-        description: '撮らずに、release/** で撮ったこのワークフローの実行（run ID）の artifact を反映する（どのブランチでも）'
-        required: false
-        default: ''
-      reupload_pending:
-        description: '同じ画像でも、取り込みが終わっていない画像を含むセットは消して上げ直す（Apple 側で取り込みが止まったとき）'
-        type: boolean
-        default: false
+      max_parallel:
+        description: '撮影に同時に使う macOS ランナーの数（1〜5）。撮る表示サイズの数より多ければ、余った枠のぶん言語を分けて撮る'
+        type: number
+        default: 1
 
 permissions:
   contents: read
-  # from_run で、ほかの実行の artifact を読む
-  actions: read
 
-# 同じリポジトリで撮影が重なると、macOS ランナーを 2 台使ってしまう
 concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
 jobs:
-  plan:
-    name: plan
-    runs-on: ubuntu-latest
-    outputs:
-      capture: ${{ steps.matrix.outputs.capture }}
-      derive: ${{ steps.matrix.outputs.derive }}
-      upload: ${{ steps.matrix.outputs.upload }}
-      has_derive: ${{ steps.matrix.outputs.has_derive }}
-      should_upload: ${{ steps.matrix.outputs.should_upload }}
-
-    steps:
-      - name: Check branch
-        env:
-          REF: ${{ github.ref }}
-          ALLOW_NON_RELEASE: ${{ inputs.allow_non_release }}
-          FROM_RUN: ${{ inputs.from_run }}
-        run: |
-          # 前回の実行の画像を反映するときは撮らないので、どのブランチでもよい（release/** で撮ったものか次で確かめる）
-          if [[ "$REF" != refs/heads/release/* && "$ALLOW_NON_RELEASE" != "true" && -z "$FROM_RUN" ]]; then
-            echo "::error::スクリーンショットはリリースのときだけ撮ります。release/** ブランチを選んで実行してください（今: $REF）"
-            exit 1
-          fi
-
-      - name: Check source run
-        id: source
-        if: ${{ inputs.from_run != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          FROM_RUN: ${{ inputs.from_run }}
-        run: |
-          set -euo pipefail
-          if [[ ! "$FROM_RUN" =~ ^[0-9]+$ ]]; then
-            echo "::error::from_run には実行の ID（数字）を入れてください（今: $FROM_RUN）"
-            exit 1
-          fi
-          read -r path branch < <(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$FROM_RUN" --jq '"\(.path) \(.head_branch)"')
-          # 呼び出されたワークフローなどでは path が <ファイル>@<ref> になるので、@ から後ろを外して比べる
-          path="${path%%@*}"
-          # 反映するのは、このワークフローがリリースのときに撮った画像だけ
-          if [[ "$path" != ".github/workflows/app-store-screenshots.yml" || "$branch" != release/* ]]; then
-            echo "::error::from_run は release/** で実行したこのワークフローの ID にしてください（${FROM_RUN}: ${path} / ${branch}）"
-            exit 1
-          fi
-          echo "撮影元: run ${FROM_RUN}（${branch}）"
-          echo "release=true" >> "$GITHUB_OUTPUT"
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Resolve display types
-        id: matrix
-        env:
-          DISPLAY_TYPES: ${{ inputs.display_types }}
-          LANGUAGES: ${{ inputs.languages }}
-          REF: ${{ github.ref }}
-          UPLOAD: ${{ inputs.upload }}
-          FROM_RELEASE: ${{ steps.source.outputs.release }}
-          ENABLE_DELIVERY: ${{ vars.ENABLE_DELIVERY }}
-        run: |
-          set -euo pipefail
-          # 指定ミスは撮影（macOS ランナーで数十分）の前にここで落とす
-          python3 Tools/app_store_config.py languages "$LANGUAGES" > /dev/null
-          python3 Tools/app_store_config.py scenes > /dev/null
-          matrix="$(python3 Tools/app_store_config.py display-types "$DISPLAY_TYPES")"
-          echo "$matrix" | python3 -m json.tool
-          {
-            echo "capture=$(jq -c .capture <<<"$matrix")"
-            echo "derive=$(jq -c .derive <<<"$matrix")"
-            echo "upload=$(jq -c .upload <<<"$matrix")"
-            echo "has_derive=$(jq -r '.derive | length > 0' <<<"$matrix")"
-            # 反映は release/** で撮った画像だけ（release/** から実行したときか、from_run が release/** の実行のとき）。
-            # ENABLE_DELIVERY=false のリポジトリ（テンプレート自身など）は反映しない
-            if [[ "$UPLOAD" == "true" && ( "$REF" == refs/heads/release/* || "$FROM_RELEASE" == "true" ) \
-              && "$ENABLE_DELIVERY" != "false" ]]; then
-              echo "should_upload=true"
-            else
-              echo "should_upload=false"
-            fi
-          } >> "$GITHUB_OUTPUT"
-
-  capture:
-    name: capture (${{ matrix.label }})
-    needs: plan
-    if: ${{ inputs.from_run == '' }}
-    # runner と Xcode は表示サイズごとに screenshots.json の runsOn / xcodeVersion で決める
-    runs-on: ${{ matrix.runs_on }}
-    timeout-minutes: 90
-    strategy:
-      # 1 本ずつ撮る。片方のサイズが失敗しても、残りは撮り切る
-      max-parallel: 1
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.capture) }}
-
-    env:
-      SCREENSHOTS_DIR: build/screenshots
-
-    steps:
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: ${{ matrix.xcode_version }}
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      # ランナーのイメージには選んだ Xcode に合う iOS ランタイムが入っていないことがある
-      # （xcode-27 は iOS 27.0 だけで、iPhone Duo には iOS 27.1 が要る）ので、無ければ入れる
-      - name: Prepare iOS runtime
-        run: |
-          set -euo pipefail
-          sdk="$(xcrun --sdk iphonesimulator --show-sdk-version)"
-          if ! xcrun simctl list runtimes | grep -qF "iOS ${sdk} ("; then
-            echo "iOS ${sdk} のランタイムが無いのでダウンロードします"
-            xcodebuild -downloadPlatform iOS
-          fi
-          xcrun simctl list runtimes
-
-      - name: Allow SwiftLint build tool plugin
-        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
-
-      - name: Capture screenshots
-        env:
-          LANGUAGES: ${{ inputs.languages }}
-          SKIP_PACKAGE_PLUGIN_VALIDATION: '1'
-          # xcode-27 のランナー（iPhone Duo）は起動直後の負荷が高く、既定の待ちでは 1 枚目が起動画面のまま撮れた。
-          # 他のサイズも数十秒延びるだけなので、全サイズで同じにする
-          WARMUP_SECONDS: 60
-          SETTLE_MINIMUM: 10
-        run: Tools/capture_screenshots.sh "${{ matrix.display_type }}" "$LANGUAGES"
-
-      - name: Upload screenshots as artifact
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: screenshots-${{ matrix.display_type }}
-          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
-          # 途中で失敗したときも撮れたぶんは残したいので、無くても警告どまりにする
-          if-no-files-found: warn
-
-  derive:
-    name: derive (${{ matrix.label }})
-    needs: [plan, capture]
-    if: ${{ !cancelled() && inputs.from_run == '' && needs.plan.outputs.has_derive == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.derive) }}
-
-    env:
-      SCREENSHOTS_DIR: build/screenshots
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Download source screenshots
-        uses: actions/download-artifact@v7
-        with:
-          name: screenshots-${{ matrix.source }}
-          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.source }}
-
-      - name: Derive screenshots
-        env:
-          LANGUAGES: ${{ inputs.languages }}
-        run: |
-          set -euo pipefail
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet --disable-pip-version-check pillow
-          options=()
-          if [ -n "$LANGUAGES" ]; then
-            options+=(--languages "$LANGUAGES")
-          fi
-          .venv/bin/python Tools/derive_screenshots.py \
-            --display-type "${{ matrix.display_type }}" \
-            --screenshots-dir "$SCREENSHOTS_DIR" \
-            ${options[@]+"${options[@]}"}
-          python3 Tools/verify_screenshots.py \
-            --directory "$SCREENSHOTS_DIR/${{ matrix.display_type }}" \
-            --sizes "$(python3 Tools/app_store_config.py sizes "${{ matrix.display_type }}" | paste -sd, -)"
-
-      - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: screenshots-${{ matrix.display_type }}
-          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
-          if-no-files-found: error
-
-  upload:
-    name: upload (${{ matrix.label }})
-    needs: [plan, capture, derive]
-    # 撮れた表示サイズだけでも反映できるよう、ほかの表示サイズが失敗していても進む。
-    # 撮影が途中で失敗した表示サイズも artifact は残るので、反映の前に中身を検査して落とす
-    if: ${{ !cancelled() && needs.plan.outputs.should_upload == 'true' }}
-    runs-on: ubuntu-latest
-    # 取り込み待ち（SCREENSHOT_DELIVERY_TIMEOUT の 20 分）と、全言語の転送のぶん
-    timeout-minutes: 40
-    strategy:
-      # missing_locales: create のとき、表示サイズごとのジョブが同じ言語を同時に作ろうとして失敗するので 1 本ずつ
-      max-parallel: 1
-      fail-fast: false
-      matrix:
-        include: ${{ fromJSON(needs.plan.outputs.upload) }}
-
-    env:
-      SCREENSHOTS_DIR: build/screenshots
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: Download screenshots
-        if: ${{ inputs.from_run == '' }}
-        uses: actions/download-artifact@v7
-        with:
-          name: screenshots-${{ matrix.display_type }}
-          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
-
-      - name: Download screenshots from run ${{ inputs.from_run }}
-        if: ${{ inputs.from_run != '' }}
-        uses: actions/download-artifact@v7
-        with:
-          name: screenshots-${{ matrix.display_type }}
-          path: ${{ env.SCREENSHOTS_DIR }}/${{ matrix.display_type }}
-          run-id: ${{ inputs.from_run }}
-          github-token: ${{ github.token }}
-
-      # 撮影が途中で失敗した表示サイズは、画像が欠けていたり、アルファ付きや寸法違いだったりする。
-      # App Store Connect の既存のセットを消してから入れ直すので、そのまま反映すると正しいセットを壊してしまう
-      - name: Verify screenshots
-        env:
-          DISPLAY_TYPE: ${{ matrix.display_type }}
-          LANGUAGES: ${{ inputs.languages }}
-        run: |
-          set -euo pipefail
-          python3 -m venv .venv
-          .venv/bin/pip install --quiet --disable-pip-version-check pillow
-          python3 Tools/verify_screenshots.py \
-            --directory "$SCREENSHOTS_DIR/$DISPLAY_TYPE" \
-            --sizes "$(python3 Tools/app_store_config.py sizes "$DISPLAY_TYPE" | paste -sd, -)"
-          .venv/bin/python - "$SCREENSHOTS_DIR/$DISPLAY_TYPE" "$LANGUAGES" <<'PY'
-          import subprocess, sys
-          from pathlib import Path
-          from PIL import Image
-          directory, languages = Path(sys.argv[1]), sys.argv[2]
-          scenes = [line.split("\t")[0] for line in subprocess.run(
-              ["python3", "Tools/app_store_config.py", "scenes"], capture_output=True, text=True, check=True).stdout.splitlines()]
-          targets = [line.split("\t")[0] for line in subprocess.run(
-              ["python3", "Tools/app_store_config.py", "languages", languages], capture_output=True, text=True, check=True).stdout.splitlines()]
-          problems = []
-          for language in targets:
-              for scene in scenes:
-                  path = directory / language / f"{scene}.png"
-                  if not path.is_file():
-                      problems.append(f"{path} がありません")
-                      continue
-                  with Image.open(path) as image:
-                      if "A" in image.getbands():
-                          problems.append(f"{path} にアルファがあります")
-          if problems:
-              sys.exit("撮影が揃っていないので反映しません:\n  " + "\n  ".join(problems))
-          print(f"揃っています: {len(targets)} 言語 × {len(scenes)} 枚")
-          PY
-
-      - name: Create Private Key
-        # Secrets はシェル展開ではなく env 経由で渡す
-        env:
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/private_keys"
-          printf '%s' "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/private_keys/AuthKey.p8"
-
-      - name: Upload to App Store Connect
-        env:
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
-          APP_STORE_CONNECT_PRIVATE_KEY_PATH: ${{ runner.temp }}/private_keys/AuthKey.p8
-          DISPLAY_TYPE: ${{ matrix.display_type }}
-          LANGUAGES: ${{ inputs.languages }}
-          APP_VERSION: ${{ inputs.app_version }}
-          MISSING_LOCALES: ${{ inputs.missing_locales }}
-          REUPLOAD_PENDING: ${{ inputs.reupload_pending }}
-          # Apple 側の取り込みが 5 分を超えることがある（2026-11-10 に idfa-vault-ios の iPhone 6.9 inch・iPad 13 inch で止まった）
-          SCREENSHOT_DELIVERY_TIMEOUT: 1200
-        run: |
-          set -euo pipefail
-          # PyJWT は標準では入っていないので、この実行かぎりの venv に入れる
-          .venv/bin/pip install --quiet --disable-pip-version-check pyjwt cryptography
-
-          options=(--missing-locales "$MISSING_LOCALES")
-          if [ -n "$LANGUAGES" ]; then
-            options+=(--languages "$LANGUAGES")
-          fi
-          if [ -n "$APP_VERSION" ]; then
-            options+=(--app-version "$APP_VERSION")
-          fi
-          if [ "$REUPLOAD_PENDING" = "true" ]; then
-            options+=(--reupload-pending)
-          fi
-
-          # tee に繋ぐと標準出力がまとめ書きになり、失敗したときのログが前後するので -u で止める
-          .venv/bin/python -u Tools/upload_screenshots.py \
-            --screenshots-dir "$SCREENSHOTS_DIR/$DISPLAY_TYPE" \
-            --display-type "$DISPLAY_TYPE" \
-            "${options[@]}" \
-            | tee "$RUNNER_TEMP/upload.log"
-
-      - name: Summary
-        if: always()
-        env:
-          LABEL: ${{ matrix.label }}
-          DISPLAY_TYPE: ${{ matrix.display_type }}
-        run: |
-          set -euo pipefail
-          {
-            # 全角の括弧が続くと bash 3.2 は変数名の一部と見なすので、必ず波括弧で閉じる
-            echo "## スクリーンショット: ${LABEL}（${DISPLAY_TYPE}）"
-            echo
-            if [ -d "$SCREENSHOTS_DIR/$DISPLAY_TYPE" ]; then
-              echo "| 言語 | 枚数 |"
-              echo "|---|---|"
-              for directory in "$SCREENSHOTS_DIR/$DISPLAY_TYPE"/*/; do
-                [ -d "$directory" ] || continue
-                echo "| $(basename "$directory") | $(find "$directory" -name '*.png' | wc -l | tr -d ' ') |"
-              done
-            fi
-            if [ -f "$RUNNER_TEMP/upload.log" ]; then
-              echo
-              echo '```'
-              cat "$RUNNER_TEMP/upload.log"
-              echo '```'
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+  screenshots:
+    uses: shilokuma-inc/app-kit/.github/workflows/app-store-screenshots.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
+    with:
+      # 引用符で囲む（数字と e だけのコミットを、YAML が数として読まないように）
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
+      display_types: ${{ inputs.display_types }}
+      languages: ${{ inputs.languages }}
+      upload: ${{ inputs.upload }}
+      allow_non_release: ${{ inputs.allow_non_release }}
+      # API の workflow_dispatch では number の入力も文字列で届き、そのままでは再利用ワークフローの number の入力に断られるので、数にして渡す
+      max_parallel: ${{ fromJSON(inputs.max_parallel) }}

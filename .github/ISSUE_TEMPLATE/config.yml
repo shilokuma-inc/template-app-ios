@@ -1,3 +1,4 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
 # Issue 作成時のテンプレート選択画面の設定
 # テンプレートを使わない空の Issue は作成できないようにする
 blank_issues_enabled: false

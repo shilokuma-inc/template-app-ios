@@ -1,8 +1,9 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
+# リポジトリごとの値は .github/app-kit.json に書く。版（@ の後ろのコミットと app-kit-ref）は AskHub の司令塔が書く
 name: Archive
 
-# Archive → IPA Export まで通ることを確認する（アップロードはしない）。手動実行のみ。
-# main への push では Build だけを実行する（main には develop / release/** で Upload を通したものがマージされるため）。
-# develop / release/** は upload.yml が Archive を含む。
+# Archive → IPA の書き出しまで通るかを確かめる（上げない）。手動の実行だけ。
+# develop・release/** は upload.yml が Archive を含む
 on:
   workflow_dispatch:
 
@@ -15,7 +16,15 @@ concurrency:
 
 jobs:
   archive:
-    uses: ./.github/workflows/_archive.yml
+    uses: shilokuma-inc/app-kit/.github/workflows/app-archive.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
     with:
+      # 引用符で囲む（数字と e だけのコミットを、YAML が数として読まないように）
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
       upload: false
-    secrets: inherit
+    secrets:
+      EXPORT_OPTIONS: ${{ secrets.EXPORT_OPTIONS }}
+      APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+      APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+      APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+      TESTFLIGHT_INTERNAL_TESTERS: ${{ secrets.TESTFLIGHT_INTERNAL_TESTERS }}
+      GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}

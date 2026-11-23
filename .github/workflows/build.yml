@@ -1,3 +1,5 @@
+# app-kit が配るファイル（shilokuma-inc/app-kit の managed/）。直すときは app-kit で直す。このリポジトリで直すと、次に版を上げたときに上書きされる
+# リポジトリごとの値は .github/app-kit.json に書く。版（@ の後ろのコミットと app-kit-ref）は AskHub の司令塔が書く
 name: Build
 
 # ドキュメントだけの変更でも実行する。ブランチの保護（ルールセット）で build / build を必須にしているため、
@@ -12,28 +14,30 @@ on:
 permissions:
   contents: read
 
-# 同じブランチへの連続 push では古い実行をキャンセルする。
-# 同じリポジトリの PR の synchronize はジョブを実行しない（push 側で実行済み）ため別グループにし、
-# PR 作成時に走らせた UI テストを取り消さないようにする（AskHub の最終 PR の synchronize は実行するので除く）
+# 同じブランチへの連続 push では古い実行を取り消す。
+# 同じリポジトリの PR の synchronize はジョブを実行しない（push 側で実行済み）ので別のグループにし、
+# PR を作ったときに走らせた UI テストを取り消さないようにする（AskHub の最終 PR の synchronize は実行するので除く）
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.action == 'synchronize' && github.event.pull_request.head.repo.full_name == github.repository && !(startsWith(github.head_ref, 'askhub/') && !startsWith(github.base_ref, 'askhub/')) && 'noop' || 'run' }}
   cancel-in-progress: true
 
 jobs:
   build:
-    # 同じリポジトリのブランチは push で実行するため、PR では作成時など（synchronize 以外）にだけ UI テスト込みで実行する。
+    # 同じリポジトリのブランチは push で実行するので、PR では作ったときなど（synchronize 以外）にだけ UI テスト込みで実行する。
     # ただし AskHub の作業ブランチ（askhub/**）宛ての PR（子 PR）では実行しない。ワーカーが手元でテストを流してから PR を出すので、push の Unit テストで足りる。
-    # UI テストは作業ブランチ → develop の最終 PR で実行する（macOS の同時実行枠を空けて、子 PR の待ちを減らすため）。
-    # その代わり askhub/** から askhub/** 以外への PR（最終 PR）は、更新（synchronize）でも UI テスト込みで実行する（作業ブランチへの push は Unit テストだけのため）。
-    # Fork からの PR は push で実行されないので、すべての PR イベントで実行する
+    # UI テストは作業ブランチ → develop の最終 PR で実行する（macOS の同時実行の枠を空けて、子 PR の待ちを減らすため）。
+    # その代わり askhub/** から askhub/** 以外への PR（最終 PR）は、更新（synchronize）でも UI テスト込みで実行する。
+    # Fork からの PR は push で実行されないので、すべての PR のイベントで実行する
     if: >-
       github.event_name == 'push'
       || github.event.pull_request.head.repo.full_name != github.repository
       || (github.event.action != 'synchronize' && !startsWith(github.base_ref, 'askhub/'))
       || (startsWith(github.head_ref, 'askhub/') && !startsWith(github.base_ref, 'askhub/'))
-    uses: ./.github/workflows/_build.yml
+    uses: shilokuma-inc/app-kit/.github/workflows/app-build.yml@0cba55e30b678e57815049dd021eb439ab35ba20 # v1.2.0
     with:
-      # 作業ブランチへの push では Unit テストだけ実行し、PR と develop / main / release/** では UI テストも実行する
+      # 引用符で囲む（数字と e だけのコミットを、YAML が数として読まないように）
+      app-kit-ref: '0cba55e30b678e57815049dd021eb439ab35ba20'
+      # 作業ブランチへの push では Unit テストだけ実行し、PR と develop・main・release/** では UI テストも実行する
       ui-tests: >-
         ${{ github.event_name == 'pull_request'
         || github.ref == 'refs/heads/develop'
